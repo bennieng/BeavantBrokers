@@ -21,7 +21,7 @@ upstream.on('message', msg => {
 upstream.on('error', console.error);
 
 // Health-check endpoint
-app.get('/', (_req, res) => res.send('Server is running, entering pentration stage'));
+app.get('/', (_req, res) => res.send('Server is running, entering pentration stage inside of ben'));
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () =>

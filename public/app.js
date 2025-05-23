@@ -133,6 +133,26 @@ function appendMsg(msg) {
     p.textContent = msg;
     d.prepend(p);
 }
+
+// 5) Log Out
+document.getElementById('logoutBtn').onclick = () => {
+    // 1. Remove the stored JWT
+    localStorage.removeItem('jwt');
+    window.authToken = null;
+
+    // 2. Reset the UI
+    document.getElementById('main').style.display = 'none';
+    document.getElementById('auth').style.display = 'block';
+    setAuthMessage('✅ Logged out successfully.');
+
+    // 3. (Optional) clear any messages or fields
+    document.getElementById('messages').innerHTML = '';
+    document.getElementById('whoamiResult').textContent = '';
+    document.getElementById('loginEmail').value = '';
+    document.getElementById('loginPassword').value = '';
+};
+
+
 window.addEventListener('load', async () => {
     const token = localStorage.getItem('jwt');
     if (!token) return;

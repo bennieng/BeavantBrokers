@@ -43,7 +43,6 @@ document.getElementById('registerForm').onsubmit = async e => {
 };
 
 
-
 // 2) Login
 document.getElementById('loginForm').onsubmit = async e => {
     e.preventDefault();
@@ -57,9 +56,7 @@ document.getElementById('loginForm').onsubmit = async e => {
             body: JSON.stringify({ email, password })
         });
 
-        // handle known error statuses explicitly
         if (res.status === 401) {
-            // either unregistered email or wrong password
             setAuthMessage('❌ Invalid email or password.', true);
             return;
         }
@@ -68,20 +65,24 @@ document.getElementById('loginForm').onsubmit = async e => {
             return;
         }
         if (!res.ok) {
-            // fallback for other errors (500, network issues, etc.)
             const errText = await res.text().catch(() => res.statusText);
             setAuthMessage(`❌ Server error: ${errText}`, true);
             return;
         }
 
-        // success path
+        // ── SUCCESS ─────────────────────────────────────────────────────────
         const { token } = await res.json();
         localStorage.setItem('jwt', token);
         setAuthMessage('✅ Logged in successfully!');
-        enterMain(email, token);
+
+        // Redirect to the protected dashboard page:
+        window.location.href = '/dashboard.html';
+
+        // If you still want SPA-style instead of redirect, comment the above line
+        // and uncomment the next:
+        // enterMain(email, token);
 
     } catch (err) {
-        // catch fetch/network errors
         setAuthMessage(`❌ Network error: ${err.message}`, true);
     }
 };

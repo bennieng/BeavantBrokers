@@ -17,6 +17,13 @@ const io = socketIO(server, { cors: { origin: '*' } });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));   // serve public/index.html + app.js
 
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 2) Protect dashboard.html (i think this prevents us from loading dashboard.html without logging in but i dont think it works?)
+app.get('/dashboard.html', authenticateToken, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
 // ─── MongoDB Connection & User Model ──────────────────────────────────────────
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
@@ -83,10 +90,6 @@ upstream.on('open', () => console.log('🔗 Connected upstream'));
 upstream.on('message', msg => io.emit('priceUpdate', JSON.parse(msg)));
 upstream.on('error', console.error);
 
-<<<<<<< HEAD
-// Health-check endpoint
-app.get('/', (_req, res) => res.send('Server is running, entering pentration stage inside of ben'));
-=======
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) return next(new Error('Auth token missing'));
@@ -100,7 +103,6 @@ io.on('connection', socket => {
     console.log(`👤 ${socket.user.email} connected to Socket.IO`);
     // … your real-time handlers …
 });
->>>>>>> 6bed4a0 (login and auth)
 
 // ─── Health Check & Start ─────────────────────────────────────────────────────
 app.get('/', (_, res) => res.send('Server is running'));

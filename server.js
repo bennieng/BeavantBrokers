@@ -15,14 +15,8 @@ const io = socketIO(server, { cors: { origin: '*' } });
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));   // serve public/index.html + app.js
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 // 2) Protect dashboard.html (i think this prevents us from loading dashboard.html without logging in but i dont think it works?)
-app.get('/dashboard.html', authenticateToken, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
 
 // ─── MongoDB Connection & User Model ──────────────────────────────────────────
 mongoose.connect(process.env.MONGO_URI, {
@@ -84,6 +78,9 @@ app.get('/me', authenticateToken, (req, res) => {
     res.json({ message: 'You are logged in', user: req.user });
 });
 
+// Serve ALL of /public (login.html, dashboard.html, CSS, JS, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
+
 // ─── WebSocket Feed & Socket.IO Auth ──────────────────────────────────────────
 const upstream = new WebSocket(`${process.env.STREAM_URL}?token=${process.env.STREAM_KEY}`);
 upstream.on('open', () => console.log('🔗 Connected upstream'));
@@ -104,7 +101,30 @@ io.on('connection', socket => {
     // … your real-time handlers …
 });
 
-// ─── Health Check & Start ─────────────────────────────────────────────────────
-app.get('/', (_, res) => res.send('Server is running'));
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => console.log(`🚀 Listening on http://localhost:${PORT}`));
+// ─── Connect to external price stream and broadcast updates ─────────────
+const priceWs = new WebSocket(
+    `${process.env.STREAM_URL}?token=${process.env.STREAM_KEY}`
+);
+priceWs.on('open', () =>
+    console.log('✅ Connected to price stream:', process.env.STREAM_URL)
+);
+priceWs.on('message', raw => {
+    let tick;
+    try {
+        tick = JSON.parse(raw);
+    } catch (e) {
+        console.error('Invalid price data:', e);
+        return;
+    }
+    // Broadcast to ALL connected browsers
+    io.emit('priceUpdate', tick);
+});
+priceWs.on('error', err =>
+    console.error('Price stream error:', err)
+);
+
+// ─── Database connect & server start ────────────────────────────────────
+mongoose.connect(process.env.MONGO_URI).then(() => {
+    const PORT = process.env.PORT || 4000;
+    app.listen(PORT, () => console.log(`Listening on http://localhost:${PORT}`));
+});

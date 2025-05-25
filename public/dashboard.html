@@ -9,6 +9,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.5.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <!-- Font Awesome Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <!-- ▼ ADD: Chart.js for live charts ▼ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, sans-serif;
@@ -183,6 +185,12 @@
                         </div>
                     </div>
                 </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h5>Live Price Chart</h5>
+                        <canvas id="priceChart" width="800" height="300"></canvas>
+                    </div>
+                </div>
             </section>
 
             <!-- Predictions Section -->
@@ -271,8 +279,10 @@
             document.getElementById('total-value').textContent = '$' + total.toFixed(2);
         });
     </script>
-    <!-- Simulated Price Updates -->
+    <!-- Socket.io + Main Dashboard Logic -->
+    <script src="/socket.io/socket.io.js"></script>
     <script src="dashboard.js"></script>
+
     <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.5.0/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -282,6 +292,3 @@
 </body>
 
 </html>
-
-<script src="/socket.io/socket.io.js"></script>
-<script src="/js/dashboard.js"></script>

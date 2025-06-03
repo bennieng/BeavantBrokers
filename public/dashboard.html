@@ -5,85 +5,209 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>BeavantBrokers Dashboard</title>
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.5.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <!-- Font Awesome Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-    <!-- ▼ ADD: Chart.js for live charts ▼ -->
+    <!-- Chart.js (for live charts) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <!-- Socket.IO client (served by your server) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Your custom styles (make sure this path is correct!) -->
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Custom CSS -->
     <style>
+        /* ─── GLOBAL RESET & BASE ───────────────────────────────────────────────── */
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, sans-serif;
-            background-color: #f8f9fa;
+            color: #343a40;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        /* ─── NAVBAR ─────────────────────────────────────────────────────────────── */
+        .navbar {
+            background-color: #ffffff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
         }
 
         .navbar-brand {
             font-weight: bold;
             letter-spacing: 1px;
             font-size: 1.75rem;
+            color: #007bff !important;
         }
 
+        .navbar-nav .nav-link {
+            color: #495057;
+            transition: color 0.2s;
+            font-weight: 500;
+            margin-right: 0.5rem;
+        }
+
+        .navbar-nav .nav-link:hover,
+        .navbar-nav .nav-link.active {
+            color: #007bff !important;
+        }
+
+        .btn-outline-danger {
+            border-color: #dc3545;
+            color: #dc3545;
+        }
+
+        .btn-outline-danger:hover {
+            background-color: #dc3545;
+            color: #fff;
+        }
+
+        /* ─── HERO BANNER ───────────────────────────────────────────────────────── */
         .hero {
-            background: url('https://source.unsplash.com/1600x400/?finance,stocks') center/cover no-repeat;
+            background: linear-gradient(135deg, rgba(0, 123, 255, 0.8), rgba(0, 200, 83, 0.8)), url('https://source.unsplash.com/1600x400/?finance,stocks') center/cover no-repeat;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            margin-bottom: 2rem;
         }
 
         .hero-overlay {
-            background-color: rgba(0, 0, 0, 0.6);
-            padding: 6rem 0;
+            padding: 4rem 2rem;
         }
 
         .hero-overlay h1 {
-            font-size: 4rem;
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
         }
 
         .hero-overlay p {
-            font-size: 1.5rem;
+            font-size: 1.25rem;
+            margin-bottom: 0;
         }
 
-        main {
-            padding: 3rem;
-        }
-
+        /* ─── SECTION HEADERS ───────────────────────────────────────────────────── */
         h2.section-title {
-            font-size: 2.5rem;
-            margin-bottom: 1.5rem;
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
             border-bottom: 2px solid #dee2e6;
-            padding-bottom: .5rem;
+            color: #343a40;
         }
 
+        /* ─── CARDS ───────────────────────────────────────────────────────────────── */
         .card {
             border: none;
-            border-radius: .75rem;
+            border-radius: 0.75rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
         }
 
         .card-icon {
             font-size: 3rem;
-            color: #0d6efd;
-            margin-bottom: .75rem;
+            color: #007bff;
+            margin-bottom: 0.75rem;
         }
 
         .card-body h6 {
-            font-size: .85rem;
+            font-size: 0.85rem;
             letter-spacing: 1px;
             text-transform: uppercase;
             color: #6c757d;
+            margin-bottom: 0.5rem;
         }
 
         .card-body p.fs-3 {
-            font-size: 2rem;
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
         }
 
+        /* ─── TABLES & FORMS ───────────────────────────────────────────────────── */
+        .table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .table input,
         .form-control,
         .form-select {
-            border-radius: .5rem;
+            border-radius: 0.5rem;
         }
 
+        .form-control:focus {
+            box-shadow: 0 0 0 0.1rem rgba(0, 123, 255, 0.25);
+        }
+
+        #add-row {
+            border-color: #17a2b8;
+            color: #17a2b8;
+        }
+
+        #add-row:hover {
+            background-color: #17a2b8;
+            color: #fff;
+        }
+
+        .remove-row {
+            background-color: transparent;
+            border: none;
+            color: #dc3545;
+        }
+
+        .remove-row:hover {
+            color: #a71d2a;
+        }
+
+        /* ─── WATCHLIST INPUT & BUTTON ──────────────────────────────────────────── */
+        #stockSymbol {
+            border: 1px solid #ced4da;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        #stockSymbol:focus {
+            border-color: #17a2b8;
+            box-shadow: 0 0 0 0.1rem rgba(23, 162, 184, 0.25);
+        }
+
+        #trackBtn {
+            background-color: #17a2b8;
+            border-color: #17a2b8;
+            color: #fff;
+        }
+
+        #trackBtn:hover {
+            background-color: #138496;
+            border-color: #117a8b;
+        }
+
+        /* ─── MARKET STATUS TEXT ───────────────────────────────────────────────── */
+        #market-status {
+            font-style: italic;
+            color: #6c757d;
+        }
+
+        /* ─── FOOTER ─────────────────────────────────────────────────────────────── */
         footer {
-            background-color: #fff;
-            padding: 1rem;
             text-align: center;
-            border-top: 1px solid #dee2e6;
+            padding: 1rem 0;
             margin-top: 3rem;
+            color: #6c757d;
         }
     </style>
 </head>
@@ -92,20 +216,34 @@
     <!-- Top Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#dashboard"><i class="fas fa-chart-line me-2"></i>BeavantBrokers</a>
+            <a class="navbar-brand" href="#dashboard">
+                <i class="fas fa-chart-line me-2"></i>BeavantBrokers
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="#dashboard"><i
-                                class="fas fa-tachometer-alt me-1"></i>Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#watchlist"><i
-                                class="fas fa-eye me-1"></i>Watchlist</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#predictions"><i
-                                class="fas fa-robot me-1"></i>Predictions</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#profile"><i class="fas fa-user-circle me-1"></i>My
-                            Profile</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#dashboard">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#watchlist">
+                            <i class="fas fa-eye me-1"></i>Watchlist
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#predictions">
+                            <i class="fas fa-robot me-1"></i>Predictions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#profile">
+                            <i class="fas fa-user-circle me-1"></i>My Profile
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <button id="logoutBtn" class="btn btn-outline-danger ms-3">
                             <i class="fas fa-sign-out-alt me-1"></i>Log Out
@@ -119,21 +257,25 @@
     <!-- Hero Banner -->
     <section class="hero mb-5">
         <div class="hero-overlay text-center text-white">
-            <h1 class="fw-bold">Welcome to BeavantBrokers</h1>
-            <p class="lead">Your personalized real-time portfolio and market monitoring platform</p>
+            <h1>Welcome to BeavantBrokers</h1>
+            <p>Your personalized real-time portfolio and market monitoring platform</p>
         </div>
     </section>
 
-    <div class="container">
+    <div class="dashboard-wrapper">
         <main>
             <!-- Dashboard Section -->
-            <section id="dashboard" style="display:none;">
-                <h2 class="section-title"><i class="fas fa-chart-pie me-2"></i>Dashboard</h2>
+            <section id="dashboard" style="display: none;">
+                <h2 class="section-title">
+                    <i class="fas fa-chart-pie me-2"></i>Dashboard
+                </h2>
                 <div class="row g-4">
                     <div class="col-sm-6 col-lg-3">
                         <div class="card shadow-sm text-center">
                             <div class="card-body">
-                                <div class="card-icon"><i class="fas fa-wallet"></i></div>
+                                <div class="card-icon">
+                                    <i class="fas fa-wallet"></i>
+                                </div>
                                 <h6>Total Value</h6>
                                 <p class="fs-3 fw-bold" id="total-value">$0.00</p>
                             </div>
@@ -142,7 +284,9 @@
                     <div class="col-sm-6 col-lg-3">
                         <div class="card shadow-sm text-center">
                             <div class="card-body">
-                                <div class="card-icon"><i class="fas fa-chart-line"></i></div>
+                                <div class="card-icon">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
                                 <h6>Today's P&L</h6>
                                 <p class="fs-3 text-success fw-bold" id="todays-pnl">$0.00 (0.0%)</p>
                             </div>
@@ -151,7 +295,9 @@
                     <div class="col-sm-6 col-lg-3">
                         <div class="card shadow-sm text-center">
                             <div class="card-body">
-                                <div class="card-icon"><i class="fas fa-coins"></i></div>
+                                <div class="card-icon">
+                                    <i class="fas fa-coins"></i>
+                                </div>
                                 <h6>Unrealized G/L</h6>
                                 <p class="fs-3 text-danger fw-bold" id="unrealized-pnl">$0.00 (0.0%)</p>
                             </div>
@@ -160,7 +306,9 @@
                     <div class="col-sm-6 col-lg-3">
                         <div class="card shadow-sm text-center">
                             <div class="card-body">
-                                <div class="card-icon"><i class="fas fa-money-bill-wave"></i></div>
+                                <div class="card-icon">
+                                    <i class="fas fa-money-bill-wave"></i>
+                                </div>
                                 <h6>Cash Available</h6>
                                 <p class="fs-3 fw-bold" id="cash-available">$0.00</p>
                             </div>
@@ -170,32 +318,42 @@
             </section>
 
             <!-- Watchlist Section -->
-            <section id="watchlist" style="display:none;">
-                <h2 class="section-title"><i class="fas fa-chart-bar me-2"></i>Market Watchlist</h2>
-                <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-4" id="watch-cards">
-                    <div class="col">
-                        <div class="card shadow-sm h-100">
-                            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0">AAPL</h6><i class="fab fa-apple fa-lg"></i>
-                            </div>
-                            <div class="card-body text-center">
-                                <p class="fs-3" id="price-AAPL">$175.23</p>
-                                <p class="text-success">+1.2%</p>
-                            </div>
-                        </div>
-                    </div>
+            <section id="watchlist" style="display: none;">
+                <h2 class="section-title">
+                    <i class="fas fa-chart-bar me-2"></i>Market Watchlist
+                </h2>
+
+                <!-- Market Status -->
+                <div id="market-status" class="mb-3">Checking market status...</div>
+
+                <!-- Search & Track Input -->
+                <div class="mb-4 d-flex gap-3 align-items-center">
+                    <input type="text" id="stockSymbol" class="form-control"
+                        placeholder="Enter stock symbol (e.g. TSLA)" />
+                    <button id="trackBtn" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>Track
+                    </button>
                 </div>
-                <div class="row mt-4">
+
+                <!-- Tracked Stock Cards -->
+                <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-4" id="watch-cards">
+                    <!-- Dynamic stock cards appear here -->
+                </div>
+
+                <!-- Live Price Chart -->
+                <div class="row mt-5">
                     <div class="col-12">
-                        <h5>Live Price Chart</h5>
+                        <h5>Live Price Chart (latest tracked)</h5>
                         <canvas id="priceChart" width="800" height="300"></canvas>
                     </div>
                 </div>
             </section>
 
             <!-- Predictions Section -->
-            <section id="predictions" style="display:none;">
-                <h2 class="section-title"><i class="fas fa-brain me-2"></i>ML Predictions</h2>
+            <section id="predictions" style="display: none;">
+                <h2 class="section-title">
+                    <i class="fas fa-brain me-2"></i>ML Predictions
+                </h2>
                 <div class="row row-cols-1 row-cols-md-2 g-4" id="prediction-cards">
                     <div class="col">
                         <div class="card shadow-sm h-100 text-center">
@@ -209,8 +367,10 @@
             </section>
 
             <!-- Profile Section -->
-            <section id="profile" style="display:none;">
-                <h2 class="section-title"><i class="fas fa-user me-2"></i>My Profile & Holdings</h2>
+            <section id="profile" style="display: none;">
+                <h2 class="section-title">
+                    <i class="fas fa-user me-2"></i>My Profile & Holdings
+                </h2>
                 <form id="holdings-form">
                     <div class="table-responsive mb-3">
                         <table class="table align-middle">
@@ -224,68 +384,112 @@
                             </thead>
                             <tbody id="holdings-body">
                                 <tr>
-                                    <td><input type="text" class="form-control" name="ticker" placeholder="AAPL"
-                                            required></td>
-                                    <td><input type="number" class="form-control" name="quantity" value="0" min="0"
-                                            required></td>
-                                    <td><input type="number" class="form-control" name="price" value="0" min="0"
-                                            step="0.01" required></td>
-                                    <td><button type="button" class="btn btn-danger btn-sm remove-row"><i
-                                                class="fas fa-trash"></i></button></td>
+                                    <td>
+                                        <input type="text" class="form-control" name="ticker" placeholder="AAPL"
+                                            required>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control" name="quantity" value="0" min="0"
+                                            required>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control" name="price" value="0" min="0"
+                                            step="0.01" required>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-danger btn-sm remove-row">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                    <button type="button" id="add-row" class="btn btn-outline-secondary mb-3"><i
-                            class="fas fa-plus me-1"></i>Add Holding</button>
-                    <button type="submit" class="btn btn-primary mb-3"><i class="fas fa-calculator me-1"></i>Calculate
-                        Total</button>
+                    <button type="button" id="add-row" class="btn btn-outline-info mb-3">
+                        <i class="fas fa-plus me-1"></i>Add Holding
+                    </button>
+                    <button type="submit" class="btn btn-primary mb-3">
+                        <i class="fas fa-calculator me-1"></i>Calculate Total
+                    </button>
                 </form>
                 <div id="holdings-result"></div>
             </section>
         </main>
     </div>
-    </div>
 
-    <!-- Toggle Sections & Profile Logic -->
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
+    <!-- Toggle Sections & Navbar Active-State Logic (DO NOT REMOVE)            -->
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
     <script>
         function showSection() {
-            const hash = window.location.hash.substring(1) || 'dashboard';
-            document.querySelectorAll('main section').forEach(sec => sec.style.display = (sec.id === hash ? 'block' : 'none'));
-            document.querySelectorAll('.navbar-nav .nav-link').forEach(link => link.classList.toggle('active', link.getAttribute('href') === '#' + hash));
-        }
-        window.addEventListener('hashchange', showSection);
-        window.addEventListener('DOMContentLoaded', showSection);
-
-        document.getElementById('add-row').addEventListener('click', () => {
-            const row = document.querySelector('#holdings-body tr').cloneNode(true);
-            row.querySelectorAll('input').forEach(inp => inp.value = inp.name === 'ticker' ? '' : 0);
-            document.getElementById('holdings-body').append(row);
-        });
-        document.getElementById('holdings-body').addEventListener('click', e => {
-            if (e.target.closest('.remove-row')) e.target.closest('tr').remove();
-        });
-        document.getElementById('holdings-form').addEventListener('submit', e => {
-            e.preventDefault(); let total = 0; let html = '<table class="table"><thead><tr><th>Ticker</th><th>Value</th></tr></thead><tbody>';
-            document.querySelectorAll('#holdings-body tr').forEach(r => {
-                const t = r.querySelector('input[name="ticker"]').value.toUpperCase();
-                const q = parseFloat(r.querySelector('input[name="quantity"]').value);
-                const p = parseFloat(r.querySelector('input[name="price"]').value);
-                const val = q * p; total += val;
-                html += `<tr><td>${t}</td><td>$${val.toFixed(2)}</td></tr>`;
+            // If no hash is present, default to "#dashboard"
+            let current = window.location.hash.substring(1);
+            if (!current) {
+                current = 'dashboard';
+                history.replaceState(null, null, '#dashboard');
+            }
+            // Hide/show each section based on the hash
+            document.querySelectorAll('main section').forEach(sec => {
+                sec.style.display = (sec.id === current ? 'block' : 'none');
             });
-            html += `</tbody></table><h4>Total Assets: $${total.toFixed(2)}</h4>`;
-            document.getElementById('holdings-result').innerHTML = html;
-            document.getElementById('total-value').textContent = '$' + total.toFixed(2);
-        });
+            // Toggle active class on nav links
+            document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+                link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+            });
+        }
+
+        window.addEventListener('hashchange', showSection);
+        // We will call showSection() manually after auth-check
     </script>
-    <!-- Socket.io + Main Dashboard Logic -->
-    <script src="/socket.io/socket.io.js"></script>
+
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
+    <!-- Main Dashboard Logic (priceChart updates via Socket.IO)                  -->
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
     <script src="dashboard.js"></script>
 
-    <!-- Bootstrap JS Bundle -->
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
+    <!-- Bootstrap JS Bundle                                                     -->
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.5.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
+    <!-- AUTHENTICATION CHECK (calls showSection() upon success)                  -->
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
+    <script>
+        (async () => {
+            // 1) Pull the JWT from localStorage
+            const token = localStorage.getItem('jwt');
+            if (!token) {
+                // no token → back to login
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                // 2) Verify token by calling /me
+                const res = await fetch('/me', {
+                    headers: { Authorization: 'Bearer ' + token },
+                });
+                if (!res.ok) {
+                    // 401 or 403 → token invalid/expired. Redirect to login.
+                    localStorage.removeItem('jwt');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                // → if 200 OK, user is authenticated. Now show correct section:
+                showSection();
+            } catch (err) {
+                console.error('Auth check failed:', err);
+                localStorage.removeItem('jwt');
+                window.location.href = 'login.html';
+                return;
+            }
+        })();
+    </script>
+
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
+    <!-- Footer                                                                 │ -->
+    <!-- ───────────────────────────────────────────────────────────────────────── -->
     <footer>
         &copy; 2025 BeavantBrokers. All rights reserved.
     </footer>

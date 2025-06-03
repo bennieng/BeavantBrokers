@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { WebSocket } = require('ws');
 const socketIO = require('socket.io');
+const yahooFinance = require('yahoo-finance2').default;
 
 // ─── App & Server Setup ───────────────────────────────────────────────────────
 const app = express();
@@ -15,6 +16,9 @@ const io = socketIO(server, { cors: { origin: '*' } });
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
+
+// Serve ALL of /public (login.html, dashboard.html, CSS, JS, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // 2) Protect dashboard.html (i think this prevents us from loading dashboard.html without logging in but i dont think it works?)
 
@@ -28,8 +32,16 @@ mongoose.connect(process.env.MONGO_URI, {
 
 const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
-    passwordHash: { type: String, required: true }
+    passwordHash: { type: String, required: true },
+    holdings: [
+        {
+            ticker: { type: String, required: true },
+            quantity: { type: Number, required: true },
+            price: { type: Number, required: true }
+        }
+    ]
 });
+
 const User = mongoose.model('User', userSchema);
 
 // ─── Auth Helpers ─────────────────────────────────────────────────────────────
@@ -74,12 +86,54 @@ app.post('/login', async (req, res) => {
     res.json({ token });
 });
 
+app.post('/api/saveHoldings', authenticateToken, async (req, res) => {
+    const email = req.user.email;
+    const holdings = req.body; // expect an array: [ { ticker, quantity, price }, … ]
+
+    await User.updateOne(
+        { email },
+        { $set: { holdings } },
+        { upsert: true }
+    );
+    res.sendStatus(200);
+});
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.get('/me', authenticateToken, (req, res) => {
     res.json({ message: 'You are logged in', user: req.user });
 });
 
-// Serve ALL of /public (login.html, dashboard.html, CSS, JS, etc.)
-app.use(express.static(path.join(__dirname, 'public')));
+app.get('/api/loadHoldings', authenticateToken, async (req, res) => {
+    const user = await User.findOne({ email: req.user.email });
+    res.json(user?.holdings || []);
+});
+
+// New: Return current market price for a single ticker
+app.get('/api/quote', authenticateToken, async (req, res) => {
+    const symbol = (req.query.symbol || '').trim().toUpperCase();
+    if (!symbol) {
+        return res.status(400).json({ error: 'Missing symbol parameter' });
+    }
+
+    try {
+        // yahooFinance.quote(...) returns an object; we only need regularMarketPrice
+        const quote = await yahooFinance.quote(symbol);
+        // If for some reason Yahoo has no data for that symbol, send 404
+        if (!quote || typeof quote.regularMarketPrice !== 'number') {
+            return res.status(404).json({ error: `No price for ${symbol}` });
+        }
+        return res.json({
+            symbol: quote.symbol,
+            price: quote.regularMarketPrice
+        });
+    } catch (err) {
+        console.error(`[API /api/quote] Error fetching ${symbol}:`, err.message);
+        return res.status(500).json({ error: `Failed to pull price for ${symbol}` });
+    }
+});
 
 // ─── WebSocket Feed & Socket.IO Auth ──────────────────────────────────────────
 const upstream = new WebSocket(`${process.env.STREAM_URL}?token=${process.env.STREAM_KEY}`);
@@ -96,6 +150,56 @@ io.use((socket, next) => {
         next();
     });
 });
+const activePollers = new Map();
+
+// Market open check (U.S. market: 9:30am–4pm ET, which is 13:30–20:00 UTC)
+function isMarketOpen() {
+    const now = new Date();
+    const day = now.getUTCDay(); // Sunday = 0, Saturday = 6
+    const hour = now.getUTCHours();
+    const minute = now.getUTCMinutes();
+    const isWeekday = day >= 1 && day <= 5;
+    const isOpen = (hour > 13 || (hour === 13 && minute >= 30)) && hour < 20;
+    return isWeekday && isOpen;
+}
+
+setInterval(() => {
+    io.emit('marketStatus', { open: isMarketOpen() });
+}, 10000); // Update market status every 10s
+
+io.on('connection', socket => {
+    console.log(`Client connected [id=${socket.id}]`);
+
+    socket.on('subscribe', symbol => {
+        const upperSymbol = symbol.toUpperCase();
+        if (activePollers.has(upperSymbol)) return;
+
+        console.log(`📡 Subscribing to ${upperSymbol}`);
+
+        const intervalId = setInterval(async () => {
+            try {
+                const quote = await yahooFinance.quote(upperSymbol);
+                io.emit('priceUpdate', {
+                    symbol: quote.symbol,
+                    price: quote.regularMarketPrice,
+                    timestamp: quote.regularMarketTime * 1000,
+                    change: quote.regularMarketChange,
+                    changePercent: quote.regularMarketChangePercent,
+                });
+            } catch (err) {
+                console.error(`[Polling ${upperSymbol}]`, err.message);
+            }
+        }, 1000);
+
+        activePollers.set(upperSymbol, intervalId);
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`Client disconnected [id=${socket.id}]`);
+        // Optional: you can stop polling if no users are connected to a symbol
+    });
+});
+
 io.on('connection', socket => {
     console.log(`👤 ${socket.user.email} connected to Socket.IO`);
     // … your real-time handlers …
@@ -123,8 +227,65 @@ priceWs.on('error', err =>
     console.error('Price stream error:', err)
 );
 
-// ─── Database connect & server start ────────────────────────────────────
-mongoose.connect(process.env.MONGO_URI).then(() => {
-    const PORT = process.env.PORT || 4000;
-    app.listen(PORT, () => console.log(`Listening on http://localhost:${PORT}`));
+// ─── Function to poll a single symbol and broadcast it ───────────────────────
+function startYahooPolling(symbol, intervalMs = 5000) {
+    // Every intervalMs milliseconds, fetch the quote and emit it
+    setInterval(async () => {
+        yahooFinance.suppressNotices(['yahooSurvey']);
+        try {
+            // Request the “quoteSummary” or “quote” endpoint; here we use simple quote
+            const quote = await yahooFinance.quote(symbol);
+            // quote will look like:
+            // { symbol: 'AAPL', regularMarketPrice: 172.25, regularMarketTime: 1691601234, … }
+            io.emit('stockData', {
+                symbol: quote.symbol,
+                price: quote.regularMarketPrice,
+                timestamp: quote.regularMarketTime * 1000, // convert to ms
+                change: quote.regularMarketChange,
+                changePercent: quote.regularMarketChangePercent,
+                // you can add more fields as desired (e.g. bid, ask, dayHigh/dayLow, etc.)
+            });
+        } catch (err) {
+            console.error(`[YahooPolling] Error fetching ${symbol}:`, err.message);
+        }
+    }, intervalMs);
+}
+
+// ─── Whenever a client connects, start polling (or you can start once) ───────
+io.on('connection', socket => {
+    console.log(`Client connected [id=${socket.id}]`);
+
+    // Option A: Start polling for one or more fixed symbols (e.g., 'AAPL', 'GOOG').
+    //           If you have multiple clients and multiple symbols, you might want a shared poller.
+    //           Here’s a quick example for a single‐symbol poll:
+    const defaultSymbol = 'AAPL';
+    if (!io.hasStartedPolling) {
+        startYahooPolling(defaultSymbol, 5000);
+        io.hasStartedPolling = true;
+    }
+
+    // Option B: Listen for the client to request a symbol (e.g. via socket.emit("subscribe", "TSLA")).
+    socket.on('subscribe', symbol => {
+        // If you want per‐symbol pollers, you'd store a map { symbol → intervalId },
+        // and only poll that symbol if not already polling. For brevity, we’ll assume
+        // just one poller for a single hard-coded symbol in this demo.
+        console.log(`Client ${socket.id} wants to subscribe to ${symbol}`);
+        // … you could call startYahooPolling(symbol) here if not already started …
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`Client disconnected [id=${socket.id}]`);
+        // You could clearInterval(...) if you keep track of intervals per‐symbol and no one is listening.
+    });
 });
+
+// ─── Start server & DB connect (your existing code) ─────────────────────────
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+    .then(() => {
+        const PORT = process.env.PORT || 4000;
+        server.listen(PORT, () => console.log(`Listening on http://localhost:${PORT}`));
+    })
+    .catch(err => console.error('MongoDB error', err));

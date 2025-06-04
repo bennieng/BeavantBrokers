@@ -1,3 +1,53 @@
+// ─── NAVIGATION HELPERS ──────────────────────────────────────────────────
+
+// 1) Hide all <section> tags under <main>, then show only the one matching window.location.hash.
+//    Also update the .btn-group so that the active button is btn-primary and others are btn-secondary.
+function showSection() {
+    let current = window.location.hash.substring(1); // e.g. "#watchlist" → "watchlist"
+    if (!current) {
+        current = 'dashboard';
+        history.replaceState(null, '', '#dashboard');
+    }
+
+    // Hide every section; show the one with id === current
+    document.querySelectorAll('main section').forEach(sec => {
+        sec.style.display = sec.id === current ? 'block' : 'none';
+    });
+
+    // In .btn-group, highlight #btn-<current> as .btn-primary; others (except logout) as .btn-secondary
+    document.querySelectorAll('.btn-group button').forEach(btn => {
+        const btnId = btn.id; // e.g. "btn-dashboard"
+        if (btnId === 'btn-' + current) {
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-primary');
+        } else if (btnId !== 'btn-logout') {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-secondary');
+        }
+    });
+
+    // (Optional) Keep top navbar links highlighted in sync
+    document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+    });
+}
+
+// 2) Called by <button onclick="navigate('dashboard')"> etc.
+//    Sets window.location.hash and immediately shows the correct section.
+function navigate(sectionId) {
+    window.location.hash = sectionId;
+    showSection();
+}
+
+// 3) Called by <button onclick="logoutAndRedirect()"> (the red “Log Out” button)
+function logoutAndRedirect() {
+    localStorage.removeItem('jwt');
+    window.location.href = 'index.html'; // or "/" if that’s your login route
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 // ─── dashboard.js (Version: “immediately fetch current price, then calc”) ───
 
 const token = localStorage.getItem('jwt');

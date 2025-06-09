@@ -226,6 +226,9 @@
         <a href="#profile" class="nav-link">
             <i class="fas fa-user-circle"></i> My Profile
         </a>
+        <a href="#alerts" class="nav-link">
+            <i class="fas fa-bell"></i> Alerts
+        </a>
         <a id="logoutBtnSidebar" class="nav-link" href="javascript:logoutAndRedirect()">
             <i class="fas fa-sign-out-alt"></i> Log Out
         </a>
@@ -398,7 +401,7 @@
                                     <tr>
                                         <th>Ticker</th>
                                         <th>Quantity</th>
-                                        <th>Price</th>
+                                        <th>Average Price</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -434,6 +437,56 @@
                     </form>
                     <div id="holdings-result"></div>
                 </section>
+
+                <!-- Alerts Section -->
+                <section id="alerts" style="display:none;">
+                    <h2 class="section-title">
+                        <i class="fas fa-bell me-2"></i>Price Alerts
+                    </h2>
+
+                    <!-- 1) Form to add a new alert -->
+                    <form id="alerts-form" class="row g-3 align-items-end mb-4">
+                        <div class="col-sm-4">
+                            <label class="form-label">Symbol</label>
+                            <input type="text" id="alertSymbol" class="form-control" placeholder="e.g. AAPL" required>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Target Price</label>
+                            <input type="number" id="alertPrice" class="form-control" step="0.01"
+                                placeholder="e.g. 150.00" required>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label">Condition</label>
+                            <select id="alertCondition" class="form-select">
+                                <option value="above">Above</option>
+                                <option value="below">Below</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-1">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- 2) List of active alerts -->
+                    <div class="table-responsive mb-4">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Price</th>
+                                    <th>When</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="alerts-list">
+                                <!-- JS will populate -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
             </main>
         </div>
 

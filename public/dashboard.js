@@ -261,6 +261,81 @@ window.removeCard = function (symbol) {
     localStorage.setItem('watchlist', JSON.stringify(updated));
 };
 
+// ─── Price Alerts Logic ────────────────────────────────────────────────
+
+// load saved alerts
+let alerts = JSON.parse(localStorage.getItem('priceAlerts') || '[]');
+
+// render alert table
+function renderAlerts() {
+    const tbody = document.getElementById('alerts-list');
+    tbody.innerHTML = '';
+    alerts.forEach((a, i) => {
+        tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td>${a.symbol}</td>
+        <td>$${a.price.toFixed(2)}</td>
+        <td>${a.condition}</td>
+        <td>
+          <button class="btn btn-sm btn-danger" data-index="${i}">
+            <i class="fas fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `);
+    });
+}
+renderAlerts();
+
+// add alert
+document.getElementById('alerts-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const sym = document.getElementById('alertSymbol').value.trim().toUpperCase();
+    const price = parseFloat(document.getElementById('alertPrice').value);
+    const cond = document.getElementById('alertCondition').value;
+
+    alerts.push({ symbol: sym, price, condition: cond });
+    localStorage.setItem('priceAlerts', JSON.stringify(alerts));
+    renderAlerts();
+    e.target.reset();
+});
+
+// remove alert
+document.getElementById('alerts-list').addEventListener('click', e => {
+    if (!e.target.closest('button[data-index]')) return;
+    const i = parseInt(e.target.closest('button').dataset.index);
+    alerts.splice(i, 1);
+    localStorage.setItem('priceAlerts', JSON.stringify(alerts));
+    renderAlerts();
+});
+
+// E) when priceupdate, check alert
+socket.on('priceUpdate', ({ symbol, price }) => {
+    alerts.forEach((a, i) => {
+        if (a.symbol !== symbol) return;
+        const triggered =
+            (a.condition === 'above' && price >= a.price) ||
+            (a.condition === 'below' && price <= a.price);
+        if (triggered) {
+            if (Notification.permission === 'granted') {
+                new Notification(`Alert: ${symbol} is ${a.condition} $${a.price}`, {
+                    body: `Current price: $${price.toFixed(2)}`,
+                    icon: '/favicon.ico'
+                });
+            }
+            alerts.splice(i, 1);
+            localStorage.setItem('priceAlerts', JSON.stringify(alerts));
+            renderAlerts();
+        }
+    });
+});
+
+// req notification permission
+if (Notification && Notification.permission !== 'granted') {
+    Notification.requestPermission();
+}
+
+
 window.addEventListener('DOMContentLoaded', () => {
     // Rehydrate saved watchlist cards
     const saved = JSON.parse(localStorage.getItem('watchlist') || '[]');
@@ -411,11 +486,52 @@ function calculateAndDisplayHoldings() {
 }
 
 
-// ------------------- 7) Form submit → recalc & save (unchanged) -------------------
+// ------------------- 7) logic to group same stocks and recalculate avg price ------------------
 const holdingsForm = document.getElementById('holdings-form');
 if (holdingsForm) {
     holdingsForm.addEventListener('submit', e => {
         e.preventDefault();
+
+        // 1) Read & group rows by ticker
+        const rows = Array.from(document.querySelectorAll('#holdings-body tr'));
+        const grouped = {};
+
+        rows.forEach(r => {
+            const t = r.querySelector('input[name="ticker"]').value.trim().toUpperCase();
+            const q = parseFloat(r.querySelector('input[name="quantity"]').value);
+            const p = parseFloat(r.querySelector('input[name="price"]').value);
+            if (!t || isNaN(q) || isNaN(p)) return;
+
+            if (!grouped[t]) {
+                grouped[t] = { totalQty: q, totalCost: q * p };
+            } else {
+                grouped[t].totalQty += q;
+                grouped[t].totalCost += q * p;
+            }
+        });
+
+        // 2) rebuild table body with grouped data
+        const tbody = document.getElementById('holdings-body');
+        tbody.innerHTML = '';
+        Object.entries(grouped).forEach(([ticker, { totalQty, totalCost }]) => {
+            const avg = totalCost / totalQty;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+        <td><input type="text"   class="form-control" name="ticker"  value="${ticker}" required></td>
+        <td><input type="number" class="form-control" name="quantity" value="${totalQty}" min="0" required></td>
+        <td><input type="number" class="form-control" name="price"    value="${avg.toFixed(2)}" min="0" step="0.01" required></td>
+        <td>
+          <button type="button" class="btn btn-danger btn-sm remove-row">
+            <i class="fas fa-trash"></i>
+          </button>
+        </td>
+      `;
+            tbody.appendChild(tr);
+        });
+
+        // 3) Now recalc & display exactly like calculateAndDisplayHoldings() does,
+        //    then save via API
         calculateAndDisplayHoldings();
     });
 }
+

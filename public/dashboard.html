@@ -347,29 +347,41 @@
                     </h2>
 
                     <!-- Market Status -->
-                    <div id="market-status" class="mb-3">Checking market status...</div>
+                    <div id="market-status" class="mb-3">Add to watchlist</div>
 
                     <!-- Search & Track Input -->
                     <div class="mb-4 d-flex gap-3 align-items-center">
                         <input type="text" id="stockSymbol" class="form-control"
                             placeholder="Enter stock symbol (e.g. TSLA)" />
                         <button id="trackBtn" class="btn btn-primary">
-                            <i class="fas fa-plus me-1"></i>Track
+                            <i class="fas fa-plus me-1"></i>Add
                         </button>
                     </div>
 
                     <!-- Tracked Stock Cards -->
                     <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-4" id="watch-cards">
-                        <!-- Dynamic stock cards appear here -->
+                        <!-- cards get injected here -->
                     </div>
 
-                    <!-- Live Price Chart -->
-                    <div class="row mt-5">
-                        <div class="col-12">
-                            <h5>Live Price Chart (latest tracked)</h5>
-                            <canvas id="priceChart" width="800" height="300"></canvas>
+                    <!-- chart container, hidden until needed -->
+                    <div id="chart-container" class="mt-5" style="display:none;">
+                        <h5 id="chart-title"></h5>
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="btn-group" role="group" id="rangeBtns">
+                                <button type="button" data-range="1d" class="btn btn-outline-primary">1D</button>
+                                <button type="button" data-range="1w" class="btn btn-outline-primary">1W</button>
+                                <button type="button" data-range="1m" class="btn btn-outline-primary">1M</button>
+                                <button type="button" data-range="1y" class="btn btn-outline-primary">1Y</button>
+                            </div>
                         </div>
+                        <canvas id="priceChart" height="200"></canvas>
                     </div>
+                    <div id="no-watchlist" class="text-center mt-5" style="display: none;">
+                        <p class="fs-4">No stocks in your watchlist yet.</p>
+                        <p class="text-muted">Add stocks to track their live prices and trends.</p>
+                    </div>
+
+
                 </section>
 
                 <!-- Predictions Section -->

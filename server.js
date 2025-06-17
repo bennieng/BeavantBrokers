@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const path = require('path');
 const express = require('express');
 const http = require('http');
@@ -8,6 +9,9 @@ const jwt = require('jsonwebtoken');
 const { WebSocket } = require('ws');
 const socketIO = require('socket.io');
 const yahooFinance = require('yahoo-finance2').default;
+const axios = require('axios');
+
+
 
 // ─── App & Server Setup ───────────────────────────────────────────────────────
 const app = express();
@@ -43,6 +47,8 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
+// added for polygon api
+const fetch = require('node-fetch');
 
 // ─── Auth Helpers ─────────────────────────────────────────────────────────────
 function authenticateToken(req, res, next) {
@@ -132,6 +138,68 @@ app.get('/api/quote', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error(`[API /api/quote] Error fetching ${symbol}:`, err.message);
         return res.status(500).json({ error: `Failed to pull price for ${symbol}` });
+    }
+});
+
+// polygon api calling
+app.get('/api/history', authenticateToken, async (req, res) => {
+    try {
+        const { symbol, range } = req.query;
+        const now = Date.now();
+        let from;
+        switch (range) {
+            case '1d': from = now - 24 * 3600 * 1000; break;
+            case '1w': from = now - 7 * 24 * 3600 * 1000; break;
+            case '1m': from = now - 30 * 24 * 3600 * 1000; break;
+            case '1y': from = now - 365 * 24 * 3600 * 1000; break;
+            default: return res.status(400).send('Invalid range');
+        }
+
+        // Polygon aggregates: 1-minute bars for intra-day, daily for longer
+        let timespan, multiplier;
+        if (range === '1d' || range === '1w') {
+            timespan = 'minute';  // 1 min bars → ~390 bars/day × 5 days = ~1 950 points
+            multiplier = 1;
+        } else if (range === '1m') {
+            timespan = 'minute';  // 5 min bars → ~78 bars/day × 21 days = ~1 638 points
+            multiplier = 5;
+        } else {  // '1y'
+            timespan = 'hour';    // 1 hour bars → ~6.5 bars/day × 252 days = ~1 638 points
+            multiplier = 1;
+        }
+
+        const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(symbol)}` +
+            `/range/${multiplier}/${timespan}/${from}/${now}` +
+            `?adjusted=true&sort=asc&limit=50000&apiKey=${process.env.POLYGON_API_KEY}`;
+
+        console.log('Calling Polygon:', url);
+        console.log('Using key:', process.env.POLYGON_API_KEY ? '***present***' : '***MISSING***');
+
+        const polyRes = await axios.get(url);
+        const polyJson = polyRes.data;
+        console.log('🛰️  Polygon raw response:', polyJson);
+
+        // On free/dev tier you’ll often get status='DELAYED' for recent bars;
+        // treat that exactly like 'OK' as long as we have `results`.
+        if (!Array.isArray(polyJson.results)) {
+            // only bail if there truly are no results or a real error
+            return res
+                .status(500)
+                .json({ error: polyJson.error || 'Polygon returned no results' });
+        }
+
+        const bars = polyJson.results.map(r => ({
+            t: r.t,
+            o: r.o,
+            h: r.h,
+            l: r.l,
+            c: r.c,
+            v: r.v
+        }));
+        res.json(bars);
+    } catch (err) {
+        console.error('History fetch error', err);
+        res.status(500).send('Server error');
     }
 });
 

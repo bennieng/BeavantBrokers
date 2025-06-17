@@ -74,7 +74,7 @@ logoutBtn.addEventListener('click', () => {
 
 // ------------------- 2) Chart.js Setup (unchanged) -------------------
 const ctx = document.getElementById('priceChart').getContext('2d');
-window.chart = new Chart(ctx, {
+const priceChart = new Chart(ctx, {
     type: 'line',
     data: {
         datasets: [
@@ -108,6 +108,103 @@ window.chart = new Chart(ctx, {
         },
         animation: { duration: 0 }
     }
+});
+// ------------------- 3) Chart display helper -------------------
+let chartSymbol = null;
+let chartRange = '1d';
+
+async function showChartFor(symbol) {
+    chartSymbol = symbol;
+    document.getElementById('chart-title').textContent = `Price Chart: ${symbol}`;
+    document.getElementById('chart-container').style.display = 'block';
+
+    // 1) Clear old data/labels
+    priceChart.data.datasets[0].data = [];
+    priceChart.data.labels = [];
+
+    // 2) Fetch raw bars
+    let bars = [];
+    try {
+        const res = await fetch(
+            `/api/history?symbol=${encodeURIComponent(symbol)}&range=${chartRange}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        bars = await res.json();
+        console.log('🕰 raw bars:', bars.length);
+    } catch (err) {
+        console.error('❌ history fetch:', err);
+        return;
+    }
+
+    // 3) For multi-day ranges, DROP any weekend points
+    if (chartRange !== '1d') {
+        bars = bars.filter(b => {
+            const wd = new Date(b.t).getUTCDay();  // 0=Sun,6=Sat
+            return wd >= 1 && wd <= 5;
+        });
+        console.log('🕰 bars after weekend filter:', bars.length);
+    }
+
+
+    // 4) If NOT intraday, use a CATEGORY axis:
+    if (chartRange !== '1d') {
+        // build one label per bar, e.g. "Jun 11"
+        const labels = bars.map(b =>
+            new Date(b.t).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+            })
+        );
+        const data = bars.map(b => b.c);
+
+        // switch x-axis to category
+        priceChart.options.scales.x = {
+            type: 'category',
+            title: { display: true, text: 'Date' },
+            ticks: { autoSkip: true, maxTicksLimit: 12 }
+        };
+
+        priceChart.data.labels = labels;
+        priceChart.data.datasets[0].data = data;
+        priceChart.update();
+        return;
+    }
+
+    // 5) INTRADAY (1d): restore a time axis in minutes
+    priceChart.options.scales.x = {
+        type: 'time',
+        time: {
+            unit: 'minute',
+            displayFormats: { minute: 'HH:mm' }
+        },
+        title: { display: true, text: 'Time (HH:mm)' }
+    };
+
+    // map their datetime → point objects
+    priceChart.data.datasets[0].data = bars.map(b => ({
+        x: new Date(b.t),
+        y: b.c
+    }));
+
+    priceChart.update();
+}
+
+
+
+
+// range‐button handler
+document.getElementById('rangeBtns').addEventListener('click', e => {
+    const r = e.target.dataset.range;
+    if (!r || !chartSymbol) return;
+    chartRange = r;
+    showChartFor(chartSymbol);
+});
+
+// watchlist “view chart” handler
+document.getElementById('watch-cards').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-action="view-chart"]');
+    if (!btn) return;
+    showChartFor(btn.dataset.symbol);
 });
 
 
@@ -211,6 +308,19 @@ socket.on('priceUpdate', ({ symbol, price, timestamp, change, changePercent }) =
 
     // ←── HERE: Recompute the Dashboard cards
     updateDashboardMetrics();
+
+    if (symbol === chartSymbol) {
+        priceChart.data.datasets[0].data.push({
+            x: new Date(timestamp || Date.now()),
+            y: price
+        });
+        // keep only the last N points
+        if (priceChart.data.datasets[0].data.length > 200) {
+            priceChart.data.datasets[0].data.shift();
+        }
+        // update chart without animation
+        priceChart.update('none');
+    }
 });
 
 
@@ -234,22 +344,34 @@ trackBtn.addEventListener('click', () => {
     const container = document.getElementById('watch-cards');
     if (document.getElementById(`card-${symbol}`)) return;
 
-    container.insertAdjacentHTML(
-        'beforeend',
-        `
-    <div class="col" id="card-${symbol}">
-      <div class="card shadow-sm h-100">
-        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-          <h6 class="mb-0">${symbol}</h6>
-          <button class="btn btn-sm btn-outline-danger" onclick="removeCard('${symbol}')">&times;</button>
+    container.insertAdjacentHTML('beforeend', `
+        <div class="col" id="card-${symbol}">
+          <div class="card shadow-sm h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">${symbol}</h6>
+              <div>
+                <button 
+                  class="btn btn-sm btn-outline-primary me-2" 
+                  data-action="view-chart" 
+                  data-symbol="${symbol}">
+                  <i class="fas fa-chart-line"></i>
+                </button>
+                <button 
+                  class="btn btn-sm btn-outline-danger" 
+                  data-action="remove-card" 
+                  data-symbol="${symbol}">
+                  &times;
+                </button>
+              </div>
+            </div>
+            <div class="card-body text-center">
+              <p id="price-${symbol}" class="fs-3">$0.00</p>
+              <p id="change-${symbol}" class="text-muted small">–</p>
+            </div>
+          </div>
         </div>
-        <div class="card-body text-center">
-          <p class="fs-3" id="price-${symbol}">$0.00</p>
-          <p id="change-${symbol}" class="text-muted">Waiting...</p>
-        </div>
-      </div>
-    </div>`
-    );
+      `);
+
 });
 
 window.removeCard = function (symbol) {
@@ -260,6 +382,26 @@ window.removeCard = function (symbol) {
     const updated = watchlist.filter(s => s !== symbol);
     localStorage.setItem('watchlist', JSON.stringify(updated));
 };
+
+// Remove-card handler
+document.getElementById('watch-cards').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-action="remove-card"]');
+    if (!btn) return;
+    const sym = btn.dataset.symbol;
+    document.getElementById(`card-${sym}`)?.remove();
+    // update your watchlist array & localStorage here…
+});
+
+// View-chart handler
+document.getElementById('watch-cards').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-action="view-chart"]');
+    if (!btn) return;
+    const sym = btn.dataset.symbol;
+    showChartFor(sym);       // your existing function
+});
+
+
+
 
 // ─── Price Alerts Logic ────────────────────────────────────────────────
 

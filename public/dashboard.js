@@ -1,7 +1,6 @@
 // ─── NAVIGATION HELPERS ──────────────────────────────────────────────────
 
-// 1) Hide all <section> tags under <main>, then show only the one matching window.location.hash.
-//    Also update the .btn-group so that the active button is btn-primary and others are btn-secondary.
+// hide section tags under main, then show only the one matching window.location.hash.
 function showSection() {
     let current = window.location.hash.substring(1); // e.g. "#watchlist" → "watchlist"
     if (!current) {
@@ -9,12 +8,11 @@ function showSection() {
         history.replaceState(null, '', '#dashboard');
     }
 
-    // Hide every section; show the one with id === current
+    // hides all sections and only shows the one == current
     document.querySelectorAll('main section').forEach(sec => {
         sec.style.display = sec.id === current ? 'block' : 'none';
     });
 
-    // In .btn-group, highlight #btn-<current> as .btn-primary; others (except logout) as .btn-secondary
     document.querySelectorAll('.btn-group button').forEach(btn => {
         const btnId = btn.id; // e.g. "btn-dashboard"
         if (btnId === 'btn-' + current) {
@@ -26,29 +24,25 @@ function showSection() {
         }
     });
 
-    // (Optional) Keep top navbar links highlighted in sync
+    // keep topbar nav links active
     document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
         link.classList.toggle('active', link.getAttribute('href') === '#' + current);
     });
 }
 
-// 2) Called by <button onclick="navigate('dashboard')"> etc.
-//    Sets window.location.hash and immediately shows the correct section.
+// sets window.location.hash and immediately shows the correct section.
 function navigate(sectionId) {
     window.location.hash = sectionId;
     showSection();
 }
 
-// 3) Called by <button onclick="logoutAndRedirect()"> (the red “Log Out” button)
+// called by logout
 function logoutAndRedirect() {
     localStorage.removeItem('jwt');
-    window.location.href = 'index.html'; // or "/" if that’s your login route
+    window.location.href = 'index.html';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
-
-// ─── dashboard.js (Version: “immediately fetch current price, then calc”) ───
 
 const token = localStorage.getItem('jwt');
 if (!token) {
@@ -56,23 +50,18 @@ if (!token) {
     throw new Error('No auth token, redirecting to login');
 }
 
-// ─── NEW GLOBALS (Step 1) ───────────────────────────────────────────────
-
-// “currentHoldings” will hold the array of { ticker, quantity, price } once we load them.
-// We’ll use it later to recalc the Dashboard cards on every new tick.
 window.currentHoldings = [];
 
-// “livePrices” will be a map from ticker → latest real‐time price.
 const livePrices = {};
 
-// ------------------- 1) Logout Button (unchanged) -------------------
+// logout button
 const logoutBtn = document.getElementById('logoutBtn');
 logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('jwt');
     window.location.href = '/';
 });
 
-// ------------------- 2) Chart.js Setup (unchanged) -------------------
+// setup chart.js
 const ctx = document.getElementById('priceChart').getContext('2d');
 const priceChart = new Chart(ctx, {
     type: 'line',
@@ -109,7 +98,7 @@ const priceChart = new Chart(ctx, {
         animation: { duration: 0 }
     }
 });
-// ------------------- 3) Chart display helper -------------------
+// chart display helper
 let chartSymbol = null;
 let chartRange = '1d';
 
@@ -118,11 +107,11 @@ async function showChartFor(symbol) {
     document.getElementById('chart-title').textContent = `Price Chart: ${symbol}`;
     document.getElementById('chart-container').style.display = 'block';
 
-    // 1) Clear old data/labels
+    // clear old data/labels
     priceChart.data.datasets[0].data = [];
     priceChart.data.labels = [];
 
-    // 2) Fetch raw bars
+    // fetch raw bars
     let bars = [];
     try {
         const res = await fetch(
@@ -136,7 +125,7 @@ async function showChartFor(symbol) {
         return;
     }
 
-    // 3) For multi-day ranges, DROP any weekend points
+    // for multi-day ranges, drop weekend points
     if (chartRange !== '1d') {
         bars = bars.filter(b => {
             const wd = new Date(b.t).getUTCDay();  // 0=Sun,6=Sat
@@ -146,9 +135,8 @@ async function showChartFor(symbol) {
     }
 
 
-    // 4) If NOT intraday, use a CATEGORY axis:
+    // if not daily build categorical axis otherwise idk how to get rid of weekend bar
     if (chartRange !== '1d') {
-        // build one label per bar, e.g. "Jun 11"
         const labels = bars.map(b =>
             new Date(b.t).toLocaleDateString('en-US', {
                 month: 'short',
@@ -157,7 +145,6 @@ async function showChartFor(symbol) {
         );
         const data = bars.map(b => b.c);
 
-        // switch x-axis to category
         priceChart.options.scales.x = {
             type: 'category',
             title: { display: true, text: 'Date' },
@@ -170,7 +157,7 @@ async function showChartFor(symbol) {
         return;
     }
 
-    // 5) INTRADAY (1d): restore a time axis in minutes
+    // daily
     priceChart.options.scales.x = {
         type: 'time',
         time: {
@@ -180,7 +167,6 @@ async function showChartFor(symbol) {
         title: { display: true, text: 'Time (HH:mm)' }
     };
 
-    // map their datetime → point objects
     priceChart.data.datasets[0].data = bars.map(b => ({
         x: new Date(b.t),
         y: b.c
@@ -208,28 +194,13 @@ document.getElementById('watch-cards').addEventListener('click', e => {
 });
 
 
-// ------------------- 3) Socket.IO & livePrices map -------------------
+// live mapping
 const socket = io({ auth: { token } });
 
-// Whenever a real-time update arrives, stash it in livePrices & update any visible cards
 socket.on('connect', () => {
     console.log('🔗 Connected to price feed, socket id:', socket.id);
 });
 
-/**
- * Recompute the four Dashboard cards:
- *  - Total Value
- *  - Today's P/L
- *  - Unrealized G/L
- *  - Cash Available
- *
- * It uses:
- *    window.currentHoldings  → array of { ticker, quantity, price: costBasis }
- *    livePrices[...]         → the latest real‐time price for each symbol
- *
- * If livePrices[ticker] is undefined, we simply assume its “current” equals cost basis,
- * so P/L = 0 and Value = costBasis * quantity.
- */
 function updateDashboardMetrics() {
     let totalValue = 0;
     let totalCost = 0;
@@ -238,7 +209,6 @@ function updateDashboardMetrics() {
 
     window.currentHoldings.forEach(({ ticker, quantity, price: costBasis }) => {
         const currPrice = livePrices[ticker];
-        // If we haven’t yet received a live price, treat currentPrice = costBasis → no P/L
         const currentVal = (typeof currPrice === 'number')
             ? (quantity * currPrice)
             : (quantity * costBasis);
@@ -249,18 +219,16 @@ function updateDashboardMetrics() {
         totalValue += currentVal;
         totalCost += costVal;
         totalPnL += pnl;
-        totalUnrealPL += pnl;  // here we treat “Unrealized G/L” = same as total P/L from cost basis
-
-        // Optionally, if you want a separate “Today’s P/L” vs. “Unrealized”, adapt here.
+        totalUnrealPL += pnl;
     });
 
-    // Cash Available: if you store cash in your API, you could fetch it; for now we default to 0
+    // need to add this 
     const cashAvailable = 0.00;
 
-    // Update the DOM:
+    // update dom
     document.getElementById('total-value').textContent = `$${totalValue.toFixed(2)}`;
 
-    // “Today’s P/L”: display sign + color
+    // p&l
     const todaysPnLEl = document.getElementById('todays-pnl');
     const tnSign = totalPnL >= 0 ? '+' : '-';
     todaysPnLEl.textContent = `${tnSign}$${Math.abs(totalPnL).toFixed(2)}`;
@@ -268,7 +236,7 @@ function updateDashboardMetrics() {
         ? 'fs-3 text-success fw-bold'
         : 'fs-3 text-danger fw-bold';
 
-    // “Unrealized G/L”: same logic; if you want a diffearent formula, adjust here
+    // urlz 
     const unrealPnLEl = document.getElementById('unrealized-pnl');
     const unSign = totalUnrealPL >= 0 ? '+' : '-';
     unrealPnLEl.textContent = `${unSign}$${Math.abs(totalUnrealPL).toFixed(2)}`;
@@ -276,14 +244,13 @@ function updateDashboardMetrics() {
         ? 'fs-3 text-success fw-bold'
         : 'fs-3 text-danger fw-bold';
 
-    // “Cash Available” card
+    // cash avail
     document.getElementById('cash-available').textContent = `$${cashAvailable.toFixed(2)}`;
 }
 
 socket.on('priceUpdate', ({ symbol, price, timestamp, change, changePercent }) => {
     livePrices[symbol] = price;
 
-    // 1) Update watchlist card‐text (as before)
     const priceEl = document.getElementById(`price-${symbol}`);
     if (priceEl) priceEl.textContent = `$${price.toFixed(2)}`;
 
@@ -294,7 +261,6 @@ socket.on('priceUpdate', ({ symbol, price, timestamp, change, changePercent }) =
         changeEl.className = changePercent >= 0 ? 'text-success' : 'text-danger';
     }
 
-    // 2) Update the chart if this is the “latestTracked” symbol
     if (window.latestTracked === symbol && window.chart) {
         window.chart.data.datasets[0].data.push({
             x: new Date(timestamp),
@@ -305,8 +271,6 @@ socket.on('priceUpdate', ({ symbol, price, timestamp, change, changePercent }) =
         }
         window.chart.update('none');
     }
-
-    // ←── HERE: Recompute the Dashboard cards
     updateDashboardMetrics();
 
     if (symbol === chartSymbol) {
@@ -314,18 +278,16 @@ socket.on('priceUpdate', ({ symbol, price, timestamp, change, changePercent }) =
             x: new Date(timestamp || Date.now()),
             y: price
         });
-        // keep only the last N points
         if (priceChart.data.datasets[0].data.length > 200) {
             priceChart.data.datasets[0].data.shift();
         }
-        // update chart without animation
         priceChart.update('none');
     }
 });
 
 
 
-// ------------------- 4) Watchlist “Track” Button (unchanged) -------------------
+// track button
 const trackBtn = document.getElementById('trackBtn');
 trackBtn.addEventListener('click', () => {
     const symbolInput = document.getElementById('stockSymbol');
@@ -383,27 +345,26 @@ window.removeCard = function (symbol) {
     localStorage.setItem('watchlist', JSON.stringify(updated));
 };
 
-// Remove-card handler
+// remove-card handler
 document.getElementById('watch-cards').addEventListener('click', e => {
     const btn = e.target.closest('button[data-action="remove-card"]');
     if (!btn) return;
     const sym = btn.dataset.symbol;
     document.getElementById(`card-${sym}`)?.remove();
-    // update your watchlist array & localStorage here…
 });
 
-// View-chart handler
+// view-chart handler
 document.getElementById('watch-cards').addEventListener('click', e => {
     const btn = e.target.closest('button[data-action="view-chart"]');
     if (!btn) return;
     const sym = btn.dataset.symbol;
-    showChartFor(sym);       // your existing function
+    showChartFor(sym);
 });
 
 
 
 
-// ─── Price Alerts Logic ────────────────────────────────────────────────
+// price alert function
 
 // load saved alerts
 let alerts = JSON.parse(localStorage.getItem('priceAlerts') || '[]');
@@ -451,7 +412,7 @@ document.getElementById('alerts-list').addEventListener('click', e => {
     renderAlerts();
 });
 
-// E) when priceupdate, check alert
+// when priceupdate, check alert
 socket.on('priceUpdate', ({ symbol, price }) => {
     alerts.forEach((a, i) => {
         if (a.symbol !== symbol) return;
@@ -479,14 +440,14 @@ if (Notification && Notification.permission !== 'granted') {
 
 
 window.addEventListener('DOMContentLoaded', () => {
-    // Rehydrate saved watchlist cards
+    // rehydrate saved watchlist cards
     const saved = JSON.parse(localStorage.getItem('watchlist') || '[]');
     saved.forEach(sym => {
         document.getElementById('stockSymbol').value = sym;
         document.getElementById('trackBtn').click();
     });
 
-    // Profile: “Add Holding” & “Remove Row” logic
+    // add holding and remove row handler
     document.getElementById('add-row').addEventListener('click', () => {
         const body = document.getElementById('holdings-body');
         const templateRow = body.querySelector('tr');
@@ -525,10 +486,9 @@ fetch('/api/loadHoldings', {
         const body = document.getElementById('holdings-body');
         body.innerHTML = ''; // clear initial row
 
-        // 1) Re‐insert each saved row AND store it in window.currentHoldings
+        // reinsert each saved row and store in window.currentHoldings
         window.currentHoldings = []; // reset
         data.forEach(({ ticker, quantity, price }) => {
-            // a) build the <tr> in the “Profile” form
             const row = document.createElement('tr');
             row.innerHTML = `
         <td><input type="text" class="form-control" name="ticker" value="${ticker}" required></td>
@@ -538,7 +498,6 @@ fetch('/api/loadHoldings', {
       `;
             body.appendChild(row);
 
-            // b) store into currentHoldings array:
             window.currentHoldings.push({
                 ticker: ticker.toUpperCase(),
                 quantity: quantity,
@@ -547,7 +506,7 @@ fetch('/api/loadHoldings', {
         });
 
 
-        // 2) Fetch “current price” for each ticker in parallel, so we can update livePrices[...]
+        // fetch current price for each holding
         const quotePromises = window.currentHoldings.map(h => {
             return fetch(`/api/quote?symbol=${encodeURIComponent(h.ticker)}`, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -561,14 +520,13 @@ fetch('/api/loadHoldings', {
                 })
                 .catch(err => {
                     console.warn(`[Quote Fetch] Could not fetch ${h.ticker}:`, err.message);
-                    // If we can’t fetch a price, simply skip and treat livePrices[ticker] as undefined.
                 });
         });
 
-        // 3) Only after ALL quote calls finish do we calculate the Profile P/L table AND the Dashboard cards:
+        // calculate table and cards after all quotes are fetched
         Promise.all(quotePromises).then(() => {
-            calculateAndDisplayHoldings(); // your existing P/L‐under‐“Profile” logic
-            updateDashboardMetrics();      // our new helper to refresh Dashboard cards
+            calculateAndDisplayHoldings();
+            updateDashboardMetrics();
         });
     })
     .catch(err => {
@@ -577,7 +535,7 @@ fetch('/api/loadHoldings', {
 
 
 
-// ------------------- 6) calculateAndDisplayHoldings helper (unchanged) -------------------
+// calculate and display holding helper
 function calculateAndDisplayHoldings() {
     let total = 0;
     let html = '<table class="table"><thead><tr><th>Ticker</th><th>Value</th><th>P/L</th></tr></thead><tbody>';
@@ -593,7 +551,6 @@ function calculateAndDisplayHoldings() {
         const pl = (typeof curr === 'number') ? (currentVal - cost) : 0;
         total += currentVal;
 
-        // Build the array we’ll send back to /api/saveHoldings:
         holdingsToSave.push({ ticker: t, quantity: q, price: p });
 
         const plSign = pl > 0 ? '+' : pl < 0 ? '-' : '';
@@ -612,7 +569,7 @@ function calculateAndDisplayHoldings() {
     document.getElementById('holdings-result').innerHTML = html;
     document.getElementById('total-value').textContent = '$' + total.toFixed(2);
 
-    // 6a) Save back any edits (optional, in case user changed input fields before “Calculate”)
+    // saves edits in case user makes changes before calcualting
     fetch('/api/saveHoldings', {
         method: 'POST',
         headers: {
@@ -628,13 +585,12 @@ function calculateAndDisplayHoldings() {
 }
 
 
-// ------------------- 7) logic to group same stocks and recalculate avg price ------------------
+// logic to group same stock and recalculate avg price
 const holdingsForm = document.getElementById('holdings-form');
 if (holdingsForm) {
     holdingsForm.addEventListener('submit', e => {
         e.preventDefault();
 
-        // 1) Read & group rows by ticker
         const rows = Array.from(document.querySelectorAll('#holdings-body tr'));
         const grouped = {};
 
@@ -652,7 +608,6 @@ if (holdingsForm) {
             }
         });
 
-        // 2) rebuild table body with grouped data
         const tbody = document.getElementById('holdings-body');
         tbody.innerHTML = '';
         Object.entries(grouped).forEach(([ticker, { totalQty, totalCost }]) => {
@@ -671,8 +626,6 @@ if (holdingsForm) {
             tbody.appendChild(tr);
         });
 
-        // 3) Now recalc & display exactly like calculateAndDisplayHoldings() does,
-        //    then save via API
         calculateAndDisplayHoldings();
     });
 }

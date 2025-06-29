@@ -8,8 +8,7 @@ function setAuthMessage(msg, isError = false) {
     d.style.color = isError ? 'red' : 'green';
 }
 
-// 1) Registration
-// 1) Registration (fully implemented)
+// Registration
 document.getElementById('registerForm').onsubmit = async e => {
     e.preventDefault();
     const email = document.getElementById('regEmail').value;
@@ -35,7 +34,7 @@ document.getElementById('registerForm').onsubmit = async e => {
             return;
         }
 
-        // success!
+        // success
         setAuthMessage('✅ Registration successful! Please log in.');
     } catch (err) {
         setAuthMessage(`❌ Network error: ${err.message}`, true);
@@ -43,7 +42,7 @@ document.getElementById('registerForm').onsubmit = async e => {
 };
 
 
-// 2) Login
+// Login
 document.getElementById('loginForm').onsubmit = async e => {
     e.preventDefault();
     const email = document.getElementById('loginEmail').value;
@@ -70,17 +69,12 @@ document.getElementById('loginForm').onsubmit = async e => {
             return;
         }
 
-        // ── SUCCESS ─────────────────────────────────────────────────────────
         const { token } = await res.json();
         localStorage.setItem('jwt', token);
         setAuthMessage('✅ Logged in successfully!');
 
-        // Redirect to the protected dashboard page:
+        // redirect to the protected dashboard page:
         window.location.href = '/dashboard.html';
-
-        // If you still want SPA-style instead of redirect, comment the above line
-        // and uncomment the next:
-        // enterMain(email, token);
 
     } catch (err) {
         setAuthMessage(`❌ Network error: ${err.message}`, true);
@@ -97,7 +91,6 @@ function enterMain(email, token) {
     window.authToken = token;
 }
 
-// 3) “Who Am I?” button
 document.getElementById('whoamiBtn').onclick = async () => {
     try {
         const res = await fetch(`${API}/me`, {
@@ -113,7 +106,7 @@ document.getElementById('whoamiBtn').onclick = async () => {
     }
 };
 
-// 4) Connect Socket.IO
+// connect to websocket
 document.getElementById('connectWsBtn').onclick = () => {
     if (socket && socket.connected) return;
     socket = io(API, { auth: { token: window.authToken } });
@@ -135,18 +128,13 @@ function appendMsg(msg) {
     d.prepend(p);
 }
 
-// 5) Log Out
+// log out
 document.getElementById('logoutBtn').onclick = () => {
-    // 1. Remove the stored JWT
     localStorage.removeItem('jwt');
     window.authToken = null;
-
-    // 2. Reset the UI
     document.getElementById('main').style.display = 'none';
     document.getElementById('auth').style.display = 'block';
     setAuthMessage('✅ Logged out successfully.');
-
-    // 3. (Optional) clear any messages or fields
     document.getElementById('messages').innerHTML = '';
     document.getElementById('whoamiResult').textContent = '';
     document.getElementById('loginEmail').value = '';

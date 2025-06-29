@@ -502,29 +502,28 @@
             </main>
         </div>
 
-        <!-- ───────────────────────────────────────────────────────────────────────── -->
-        <!-- Toggle Sections & Navbar Active-State Logic (DO NOT REMOVE)            -->
-        <!-- ───────────────────────────────────────────────────────────────────────── -->
+        <!-- Toggle Sections & Navbar Active-State Logic            -->
+
         <script>
             function showSection() {
-                // If no hash is present, default to "#dashboard"
+                // default to "#dashboard"
                 let current = window.location.hash.substring(1);
                 if (!current) {
                     current = 'dashboard';
                     history.replaceState(null, null, '#dashboard');
                 }
-                // Hide/show each section based on the hash
+                // hide/show each section based on the hash
                 document.querySelectorAll('main section').forEach(sec => {
                     sec.style.display = (sec.id === current ? 'block' : 'none');
                 });
-                // Toggle active class on nav links
+                // toggle active class on nav links
                 document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
                     link.classList.toggle('active', link.getAttribute('href') === '#' + current);
                 });
             }
 
             window.addEventListener('hashchange', showSection);
-            // We will call showSection() manually after auth-check
+            // call showSection() manually after auth-check
         </script>
 
         <!-- ───────────────────────────────────────────────────────────────────────── -->
@@ -542,7 +541,7 @@
         <!-- ───────────────────────────────────────────────────────────────────────── -->
         <script>
             (async () => {
-                // 1) Pull the JWT from localStorage
+                // Pull the JWT from localStorage
                 const token = localStorage.getItem('jwt');
                 if (!token) {
                     // no token → back to login
@@ -551,7 +550,7 @@
                 }
 
                 try {
-                    // 2) Verify token by calling /me
+                    // verify token by calling /me
                     const res = await fetch('/me', {
                         headers: { Authorization: 'Bearer ' + token },
                     });

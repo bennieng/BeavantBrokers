@@ -385,20 +385,18 @@
                 </section>
 
                 <!-- Predictions Section -->
-                <section id="predictions" style="display: none;">
-                    <h2 class="section-title">
-                        <i class="fas fa-brain me-2"></i>ML Predictions
-                    </h2>
-                    <div class="row row-cols-1 row-cols-md-2 g-4" id="prediction-cards">
-                        <div class="col">
-                            <div class="card shadow-sm h-100 text-center">
-                                <div class="card-body">
-                                    <h6>AAPL (1-Day)</h6>
-                                    <p class="fs-3">$176.00</p>
-                                </div>
-                            </div>
-                        </div>
+                <section id="predictions" style="display:none">
+                    <h2>ML Predictions</h2>
+
+                    <!-- 1a) Input to add tickers -->
+                    <div class="input-group mb-3">
+                        <input type="text" id="predSymbolInput" class="form-control"
+                            placeholder="Add ticker (e.g. AAPL)" />
+                        <button class="btn btn-primary" id="addPredSymbol">Add</button>
                     </div>
+
+                    <!-- 1b) Container for cards -->
+                    <div class="row" id="prediction-cards"></div>
                 </section>
 
                 <!-- Profile Section -->

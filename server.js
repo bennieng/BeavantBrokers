@@ -10,6 +10,8 @@ const { WebSocket } = require('ws');
 const socketIO = require('socket.io');
 const yahooFinance = require('yahoo-finance2').default;
 const axios = require('axios');
+// const fetch = require('node-fetch');
+
 
 
 
@@ -195,6 +197,26 @@ app.get('/api/history', authenticateToken, async (req, res) => {
         res.status(500).send('Server error');
     }
 });
+
+// next-day ML prediction proxy
+app.get('/api/predict', authenticateToken, async (req, res) => {
+    const { symbol } = req.query;
+    if (!symbol) return res.status(400).json({ error: 'Missing symbol' });
+
+    try {
+        const svc = await fetch(`http://localhost:8000/predict?symbol=${encodeURIComponent(symbol)}`);
+        if (!svc.ok) {
+            const err = await svc.json().catch(() => ({}));
+            return res.status(svc.status).json({ error: err.detail || 'Prediction failed' });
+        }
+        const data = await svc.json();
+        return res.json(data);
+    } catch (err) {
+        console.error('Prediction service error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 
 // websocket feed and socket.io auth
 const upstream = new WebSocket(`${process.env.STREAM_URL}?token=${process.env.STREAM_KEY}`);

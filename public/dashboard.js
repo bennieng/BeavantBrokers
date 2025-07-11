@@ -533,6 +533,104 @@ fetch('/api/loadHoldings', {
         console.error('Error loading holdings:', err);
     });
 
+// —— ML Predictions tab loader ——  
+// —— ML Predictions tab loader ——  
+async function loadPredictions() {
+    const cards = document.getElementById('prediction-cards');
+    cards.innerHTML = '';
+
+    // 2a) Use a separate ML‐symbols list, default to empty
+    const mlSymbols = JSON.parse(localStorage.getItem('mlSymbols') || '[]');
+    if (mlSymbols.length === 0) {
+        cards.innerHTML = '<p>No symbols added. Use the input above.</p>';
+        return;
+    }
+
+    cards.innerHTML = '<p>Loading predictions…</p>';
+
+    // 2b) Fetch predictions in parallel
+    const results = await Promise.allSettled(
+        mlSymbols.map(sym =>
+            fetch(`/api/predict?symbol=${sym}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+                .then(r => {
+                    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+                    return r.json();
+                })
+                .then(data => ({ sym, data }))
+        )
+    );
+
+    // 2c) Render cards with a remove‐button
+    cards.innerHTML = '';
+    results.forEach(r => {
+        if (r.status === 'fulfilled' && !r.value.data.error) {
+            const { sym, data: { next_day_close } } = r.value;
+            cards.insertAdjacentHTML('beforeend', `
+        <div class="col">
+          <div class="card shadow-sm h-100 text-center">
+            <div class="card-body position-relative">
+              <!-- remove button -->
+              <button 
+                class="btn-close position-absolute top-0 end-0 remove-pred-symbol" 
+                data-symbol="${sym}"
+                aria-label="Remove">
+              </button>
+              <h6 class="card-title">${sym}</h6>
+              <p class="fs-3">$${next_day_close.toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+      `);
+        } else {
+            const sym = r.status === 'fulfilled' ? r.value.sym : '???';
+            cards.insertAdjacentHTML('beforeend', `
+        <div class="col">
+          <div class="card border-danger text-center">
+            <div class="card-body">
+              Error loading ${sym}
+            </div>
+          </div>
+        </div>
+      `);
+        }
+    });
+}
+
+// 3) Show the tab and load on hash
+window.addEventListener('hashchange', () => {
+    if (window.location.hash === '#predictions') loadPredictions();
+});
+if (window.location.hash === '#predictions') loadPredictions();
+
+// 4) Add‐symbol handler
+document.getElementById('addPredSymbol').addEventListener('click', () => {
+    const inp = document.getElementById('predSymbolInput');
+    const sym = inp.value.trim().toUpperCase();
+    if (!sym) return;
+    let mlSymbols = JSON.parse(localStorage.getItem('mlSymbols') || '[]');
+    if (!mlSymbols.includes(sym)) {
+        mlSymbols.push(sym);
+        localStorage.setItem('mlSymbols', JSON.stringify(mlSymbols));
+        loadPredictions();
+    }
+    inp.value = '';
+});
+
+// 5) Remove‐symbol handler (event-delegation)
+document.getElementById('prediction-cards').addEventListener('click', e => {
+    const btn = e.target.closest('.remove-pred-symbol');
+    if (!btn) return;
+    const sym = btn.dataset.symbol;
+    let mlSymbols = JSON.parse(localStorage.getItem('mlSymbols') || '[]');
+    mlSymbols = mlSymbols.filter(s => s !== sym);
+    localStorage.setItem('mlSymbols', JSON.stringify(mlSymbols));
+    loadPredictions();
+});
+
+
+
 
 
 // calculate and display holding helper

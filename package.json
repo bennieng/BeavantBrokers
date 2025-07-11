@@ -4,7 +4,10 @@
   "description": "Orbital 25 - BeavantBrokers",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "serve:python": "uvicorn predict_service:app --reload --port 8000",
+    "serve:node": "node server.js",
+    "start": "concurrently \"npm run serve:python\" \"npm run serve:node\""
   },
   "repository": {
     "type": "git",
@@ -29,5 +32,8 @@
     "socket.io": "^4.8.1",
     "ws": "^8.18.2",
     "yahoo-finance2": "^2.13.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
   }
 }

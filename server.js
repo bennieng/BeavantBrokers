@@ -10,6 +10,8 @@ const { WebSocket } = require('ws');
 const socketIO = require('socket.io');
 const yahooFinance = require('yahoo-finance2').default;
 const axios = require('axios');
+const PREDICT_URL = process.env.PREDICT_URL || 'http://localhost:8000';
+
 // const fetch = require('node-fetch');
 
 
@@ -199,21 +201,18 @@ app.get('/api/history', authenticateToken, async (req, res) => {
 });
 
 // next-day ML prediction proxy
-app.get('/api/predict', authenticateToken, async (req, res) => {
+app.get('/api/predict', async (req, res) => {
     const { symbol } = req.query;
-    if (!symbol) return res.status(400).json({ error: 'Missing symbol' });
-
     try {
-        const svc = await fetch(`http://localhost:8000/predict?symbol=${encodeURIComponent(symbol)}`);
-        if (!svc.ok) {
-            const err = await svc.json().catch(() => ({}));
-            return res.status(svc.status).json({ error: err.detail || 'Prediction failed' });
-        }
-        const data = await svc.json();
-        return res.json(data);
+        const resp = await fetch(
+            `${PREDICT_URL}/predict?symbol=${encodeURIComponent(symbol)}`,
+            { headers: { Authorization: `Bearer ${process.env.API_TOKEN}` } }
+        );
+        const body = await resp.json();
+        res.status(resp.status).json(body);
     } catch (err) {
         console.error('Prediction service error:', err);
-        return res.status(500).json({ error: 'Internal server error' });
+        res.status(502).json({ error: 'Bad Gateway' });
     }
 });
 

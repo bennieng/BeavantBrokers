@@ -534,7 +534,6 @@ fetch('/api/loadHoldings', {
     });
 
 // —— ML Predictions tab loader ——  
-// —— ML Predictions tab loader ——  
 async function loadPredictions() {
     const cards = document.getElementById('prediction-cards');
     cards.innerHTML = '';
@@ -562,21 +561,23 @@ async function loadPredictions() {
         )
     );
 
-    // 2c) Render cards with a remove‐button
+    // 2c) Render cards with a remove-button
     cards.innerHTML = '';
     results.forEach(r => {
         if (r.status === 'fulfilled' && !r.value.data.error) {
             const { sym, data: { next_day_close } } = r.value;
+
             cards.insertAdjacentHTML('beforeend', `
         <div class="col">
           <div class="card shadow-sm h-100 text-center">
             <div class="card-body position-relative">
-              <!-- remove button -->
+              <!-- ← PART A: Remove button -->
               <button 
                 class="btn-close position-absolute top-0 end-0 remove-pred-symbol" 
                 data-symbol="${sym}"
                 aria-label="Remove">
               </button>
+
               <h6 class="card-title">${sym}</h6>
               <p class="fs-3">$${next_day_close.toFixed(2)}</p>
             </div>
@@ -597,6 +598,7 @@ async function loadPredictions() {
         }
     });
 }
+
 
 // 3) Show the tab and load on hash
 window.addEventListener('hashchange', () => {

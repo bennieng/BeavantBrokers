@@ -8,79 +8,85 @@ function setAuthMessage(msg, isError = false) {
     d.style.color = isError ? 'red' : 'green';
 }
 
-// Registration
-document.getElementById('registerForm').onsubmit = async e => {
-    e.preventDefault();
-    const email = document.getElementById('regEmail').value;
-    const password = document.getElementById('regPassword').value;
+// Show “email verified” notice if we were redirected here after verification
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('verified') === '1') {
+    // Reuse your existing helper to display messages
+    setAuthMessage('✅ Your email has been verified! Please log in.', false);
+}
 
-    try {
-        const res = await fetch(`${API}/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
-
-        if (res.status === 400) {
-            // e.g. email already exists or missing fields
-            const errText = await res.text();
-            setAuthMessage(`❌ Registration failed: ${errText}`, true);
-            return;
+// Registration (only if registerForm is on this page)
+const registerForm = document.getElementById('registerForm');
+if (registerForm) {
+    registerForm.onsubmit = async e => {
+        e.preventDefault();
+        const email = document.getElementById('regEmail').value;
+        const password = document.getElementById('regPassword').value;
+        try {
+            const res = await fetch(`${API}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            if (res.status === 400) {
+                const errText = await res.text();
+                setAuthMessage(`❌ Registration failed: ${errText}`, true);
+                return;
+            }
+            if (!res.ok) {
+                const errText = await res.text();
+                setAuthMessage(`❌ Server error: ${errText}`, true);
+                return;
+            }
+            setAuthMessage('✅ Registration successful! Please check your email and verify your account before logging in.');
+        } catch (err) {
+            setAuthMessage(`❌ Network error: ${err.message}`, true);
         }
-        if (!res.ok) {
-            // fallback for 500s etc
-            const errText = await res.text();
-            setAuthMessage(`❌ Server error: ${errText}`, true);
-            return;
+    };
+}
+
+
+// Login (only if loginForm is on this page)
+const loginForm = document.getElementById('loginForm');
+if (loginForm) {
+    loginForm.onsubmit = async e => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        try {
+            const res = await fetch(`${API}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (res.status === 403) {
+                setAuthMessage('❌ Please check your email and click the verification link.', true);
+                return;
+            }
+
+            if (res.status === 401) {
+                setAuthMessage('❌ Invalid email or password.', true);
+                return;
+            }
+            if (res.status === 400) {
+                setAuthMessage('❌ Login failed: bad request.', true);
+                return;
+            }
+            if (!res.ok) {
+                const errText = await res.text().catch(() => res.statusText);
+                setAuthMessage(`❌ Server error: ${errText}`, true);
+                return;
+            }
+            const { token } = await res.json();
+            localStorage.setItem('jwt', token);
+            setAuthMessage('✅ Logged in successfully!');
+            window.location.href = '/dashboard.html';
+        } catch (err) {
+            setAuthMessage(`❌ Network error: ${err.message}`, true);
         }
-
-        // success
-        setAuthMessage('✅ Registration successful! Please log in.');
-    } catch (err) {
-        setAuthMessage(`❌ Network error: ${err.message}`, true);
-    }
-};
-
-
-// Login
-document.getElementById('loginForm').onsubmit = async e => {
-    e.preventDefault();
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
-
-    try {
-        const res = await fetch(`${API}/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
-
-        if (res.status === 401) {
-            setAuthMessage('❌ Invalid email or password.', true);
-            return;
-        }
-        if (res.status === 400) {
-            setAuthMessage('❌ Login failed: bad request.', true);
-            return;
-        }
-        if (!res.ok) {
-            const errText = await res.text().catch(() => res.statusText);
-            setAuthMessage(`❌ Server error: ${errText}`, true);
-            return;
-        }
-
-        const { token } = await res.json();
-        localStorage.setItem('jwt', token);
-        setAuthMessage('✅ Logged in successfully!');
-
-        // redirect to the protected dashboard page:
-        window.location.href = '/dashboard.html';
-
-    } catch (err) {
-        setAuthMessage(`❌ Network error: ${err.message}`, true);
-    }
-};
-
+    };
+}
 
 // show the main UI
 function enterMain(email, token) {

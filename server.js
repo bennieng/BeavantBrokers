@@ -1,5 +1,5 @@
 require('dotenv').config();
-
+const crypto = require('crypto');
 const path = require('path');
 const express = require('express');
 const http = require('http');
@@ -11,6 +11,20 @@ const socketIO = require('socket.io');
 const yahooFinance = require('yahoo-finance2').default;
 const axios = require('axios');
 const PREDICT_URL = process.env.PREDICT_URL || 'http://localhost:8000';
+const nodemailer = require('nodemailer');
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT),
+    secure: process.env.SMTP_PORT === '465', // true on 465, false on 587
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
+
 
 // const fetch = require('node-fetch');
 
@@ -40,6 +54,8 @@ mongoose.connect(process.env.MONGO_URI, {
 const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     passwordHash: { type: String, required: true },
+    emailVerified: { type: Boolean, default: false },
+    verifyToken: { type: String },
     holdings: [
         {
             ticker: { type: String, required: true },
@@ -69,20 +85,71 @@ function authenticateToken(req, res, next) {
 app.post('/register', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).send('Email + password required');
+
+    // 1) Hash & create user
+    const hash = await bcrypt.hash(password, 10);
+    const token = crypto.randomBytes(32).toString('hex');
+    let user;
     try {
-        const hash = await bcrypt.hash(password, 10);
-        const user = await User.create({ email, passwordHash: hash });
-        res.status(201).json({ id: user._id, email: user.email });
+        user = await User.create({ email, passwordHash: hash, verifyToken: token });
     } catch (err) {
+        if (err.code === 11000) {
+            return res.status(400).send('Email already exists');
+        }
         console.error(err);
-        res.status(400).send('Registration failed');
+        return res.status(500).send('Registration failed');
     }
+
+    // 2) Prepare recipient and log it
+    const recipient = user.email;
+    console.log('📧 Preparing to send verification to:', recipient);
+    if (!recipient) {
+        console.error('❌ No email on user object – skipping email send');
+    } else {
+        // 3) Send verification email
+        const verifyUrl = `${process.env.APP_URL}/verify?token=${user.verifyToken}`;
+        try {
+            const info = await transporter.sendMail({
+                from: `"BeavantBrokers" <${process.env.SMTP_USER}>`,
+                to: recipient,                 // <-- use user.email here
+                subject: 'Please verify your email',
+                html: `<p>Welcome to BeavantBrokers!</p>
+              <p>Click <a href="${verifyUrl}">here</a> to verify your email address.</p>`
+            });
+            console.log('✉️  Verification email sent:', info.messageId);
+        } catch (mailErr) {
+            console.error('❌ Email send error:', mailErr);
+            // We do NOT return an error here, so signup still succeeds
+        }
+    }
+
+    // 3) Always return success
+    res.status(201).json({ id: user._id, email: user.email });
+});
+
+
+app.get('/verify', async (req, res) => {
+    const { token } = req.query;
+    if (!token) return res.status(400).send('Token required');
+    const user = await User.findOne({ verifyToken: token });
+    if (!user) return res.status(400).send('Invalid or expired token');
+
+    user.emailVerified = true;
+    user.verifyToken = undefined;
+    await user.save();
+
+    // redirect back to login with a success message
+    res.redirect('/?verified=1');
 });
 
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(401).send('Invalid credentials');
+
+    if (!user.emailVerified) {
+        return res.status(403).send('Please verify your email before logging in');
+    }
 
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).send('Invalid credentials');
@@ -110,6 +177,13 @@ app.post('/api/saveHoldings', authenticateToken, async (req, res) => {
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+
+// Sign-Up page
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
 
 app.get('/me', authenticateToken, (req, res) => {
     res.json({ message: 'You are logged in', user: req.user });

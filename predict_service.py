@@ -3,6 +3,15 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sklearn.ensemble import RandomForestRegressor
 
+ # ——— PRELOAD ALL MODELS ON STARTUP ———
+MODEL_DIR = "models"
+MODELS = {}
+for fn in os.listdir(MODEL_DIR):
+    if fn.endswith(".joblib"):
+        sym = fn[:-7].upper()
+        MODELS[sym] = joblib.load(os.path.join(MODEL_DIR, fn))
+
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -63,44 +72,37 @@ def train_symbol(sym: str):
     joblib.dump(model, os.path.join(MODEL_DIR, f"{sym}.joblib"))
 
 @app.get("/predict")
+@app.get("/predict")
 def predict(symbol: str):
     sym = symbol.upper()
-    model_path = os.path.join(MODEL_DIR, f"{sym}.joblib")
-
-    # 1) Train on-demand if we haven’t seen this ticker before
-    if not os.path.isfile(model_path):
-        try:
-            train_symbol(sym)
-        except Exception as e:
-            raise HTTPException(404, f"Cannot train model for {sym}: {e}")
+    if sym not in MODELS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No model for {sym}. Available: {', '.join(MODELS.keys())}"
+        )
+    model = MODELS[sym]
 
     try:
-        # 2) Load the per-symbol model
-        model: RandomForestRegressor = joblib.load(model_path)
-
-        # 3) Download the last 15 days, grouped by ticker
+        # 1) Download recent price data
         raw = yf.download(
             sym,
             period="15d",
             interval="1d",
-            group_by="ticker",
             auto_adjust=True,
+            group_by="ticker"
         )
-
-        # 4) If yfinance returned a MultiIndex, select only our symbol’s DataFrame
-        if isinstance(raw.columns, pd.MultiIndex):
-            df = raw[sym]
-        else:
-            df = raw
+        # 2) Handle single vs multi-ticker DataFrame
+        df = raw[sym] if isinstance(raw.columns, pd.MultiIndex) else raw
 
         if df.empty:
-            raise HTTPException(404, f"No price data for {sym}")
+            raise HTTPException(404, detail=f"No price data for {sym}")
 
-        # 5) Compute features on the flat df
+        # 3) Feature engineering
         df["return_1d"] = df["Close"].pct_change()
         df["ma_5"]      = df["Close"].rolling(5).mean()
         df["vol_5"]     = df["Volume"].rolling(5).mean()
         df = df.dropna()
+
         last = df.iloc[-1]
         feats = [
             float(last["Close"]),
@@ -109,12 +111,23 @@ def predict(symbol: str):
             float(last["vol_5"]),
         ]
 
-        # 6) Predict and return
+        # 4) Predict
         pred = model.predict([feats])[0]
-        return {"symbol": sym, "next_day_close": round(float(pred), 2)}
+
+        return {
+            "symbol": sym,
+            "next_day_close": round(float(pred), 2)
+        }
 
     except HTTPException:
+        # re-raise 404/503 errors
         raise
     except Exception as e:
+        # log and convert to 500
         traceback.print_exc()
         raise HTTPException(500, detail=str(e))
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "models_loaded": list(MODELS.keys())}
+

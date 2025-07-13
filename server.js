@@ -203,16 +203,30 @@ app.get('/api/history', authenticateToken, async (req, res) => {
 // next-day ML prediction proxy
 app.get('/api/predict', async (req, res) => {
     const { symbol } = req.query;
-    try {
-        const resp = await fetch(
-            `${PREDICT_URL}/predict?symbol=${encodeURIComponent(symbol)}`,
-            { headers: { Authorization: `Bearer ${process.env.API_TOKEN}` } }
-        );
-        const body = await resp.json();
-        res.status(resp.status).json(body);
-    } catch (err) {
-        console.error('Prediction service error:', err);
-        res.status(502).json({ error: 'Bad Gateway' });
+    const url = `${PREDICT_URL}/predict?symbol=${encodeURIComponent(symbol)}`;
+    const MAX_RETRIES = 3, BACKOFF = 500;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const resp = await fetch(url, {
+                headers: { Authorization: `Bearer ${process.env.API_TOKEN}` }
+            });
+            const text = await resp.text();          // always grab raw payload
+
+            if (!resp.ok) {
+                console.warn(`[Predict][${attempt}] ${resp.status}:`, text);
+                throw new Error(`Status ${resp.status}`);
+            }
+
+            const payload = JSON.parse(text);        // throws if HTML
+            return res.status(200).json(payload);
+        } catch (err) {
+            console.error(`[Predict][${attempt}] Error:`, err.message);
+            if (attempt === MAX_RETRIES) {
+                return res.status(502).json({ error: 'Prediction service unavailable' });
+            }
+            await new Promise(r => setTimeout(r, BACKOFF));
+        }
     }
 });
 

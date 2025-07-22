@@ -26,9 +26,17 @@ function showSection() {
 
     // keep topbar nav links active
     document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
-        link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+        link.classList.toggle('active',
+            link.getAttribute('href') === '#' + current
+        );
     });
+
+    // if Alerts tab is now visible, refresh the warning banner
+    if (current === 'alerts') {
+        updateNotificationWarning();
+    }
 }
+
 
 // sets window.location.hash and immediately shows the correct section.
 function navigate(sectionId) {
@@ -391,17 +399,33 @@ function renderAlerts() {
 renderAlerts();
 
 // add alert
-document.getElementById('alerts-form').addEventListener('submit', e => {
+document.getElementById('alerts-form').addEventListener('submit', async e => {
     e.preventDefault();
     const sym = document.getElementById('alertSymbol').value.trim().toUpperCase();
     const price = parseFloat(document.getElementById('alertPrice').value);
     const cond = document.getElementById('alertCondition').value;
 
+    // save the alert
     alerts.push({ symbol: sym, price, condition: cond });
     localStorage.setItem('priceAlerts', JSON.stringify(alerts));
+
+    // ask for permission now that user clicked 'add'
+    if ('Notification' in window && Notification.permission === 'default') {
+        const result = await Notification.requestPermission();
+        console.log('📬 Notification.permission →', result);
+        alert(
+            result === 'granted'
+                ? '✅ Notifications enabled!'
+                : '⚠️ Please allow notifications to get alerts.'
+        );
+        updateNotificationWarning();
+    }
+
+    // redraw table
     renderAlerts();
     e.target.reset();
 });
+
 
 // remove alert
 document.getElementById('alerts-list').addEventListener('click', e => {
@@ -419,24 +443,19 @@ socket.on('priceUpdate', ({ symbol, price }) => {
         const triggered =
             (a.condition === 'above' && price >= a.price) ||
             (a.condition === 'below' && price <= a.price);
-        if (triggered) {
-            if (Notification.permission === 'granted') {
-                new Notification(`Alert: ${symbol} is ${a.condition} $${a.price}`, {
-                    body: `Current price: $${price.toFixed(2)}`,
-                    icon: '/favicon.ico'
-                });
-            }
+        // Only act if threshold passed *and* we have permission
+        if (triggered && Notification.permission === 'granted') {
+            new Notification(
+                `Alert: ${symbol} is ${a.condition} $${a.price}`,
+                { body: `Current price: $${price.toFixed(2)}`, icon: '/favicon.ico' }
+            );
+            // Now—and only now—remove it
             alerts.splice(i, 1);
             localStorage.setItem('priceAlerts', JSON.stringify(alerts));
             renderAlerts();
         }
     });
 });
-
-// req notification permission
-if (Notification && Notification.permission !== 'granted') {
-    Notification.requestPermission();
-}
 
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -475,6 +494,8 @@ window.addEventListener('DOMContentLoaded', () => {
             e.target.closest('tr').remove();
         }
     });
+
+    updateNotificationWarning();
 });
 
 
@@ -729,4 +750,53 @@ if (holdingsForm) {
         calculateAndDisplayHoldings();
     });
 }
+// show/hide the “notifications disabled” warning and offer a button to enable
+function updateNotificationWarning() {
+    const warn = document.getElementById('notificationWarning');
+
+    // 1) not supported at all
+    if (!('Notification' in window)) {
+        warn.textContent = 'Your browser does not support desktop notifications.';
+        warn.style.display = 'block';
+        return;
+    }
+
+    // 2) user hasn’t decided yet → we can call requestPermission()
+    if (Notification.permission === 'default') {
+        warn.innerHTML = `
+        Desktop notifications are <strong>disabled</strong>.
+        <button 
+          class="btn btn-sm btn-secondary ms-2"
+          onclick="(async () => {
+            const res = await Notification.requestPermission();
+            console.log('New permission:', res);
+            updateNotificationWarning();
+          })()"
+        >
+          Enable Notifications
+        </button>
+      `;
+        warn.style.display = 'block';
+        return;
+    }
+
+    // 3) user explicitly denied → we must ask them to go into browser settings
+    if (Notification.permission === 'denied') {
+        warn.innerHTML = `
+        Desktop notifications have been <strong>blocked</strong>.<br>
+        Please open your browser’s site-settings and re-enable notifications for this site.
+      `;
+        warn.style.display = 'block';
+        return;
+    }
+
+    // 4) granted
+    warn.style.display = 'none';
+}
+
+
+
+window.addEventListener('DOMContentLoaded', () => {
+    updateNotificationWarning();
+});
 

@@ -58,9 +58,68 @@ if (!token) {
     throw new Error('No auth token, redirecting to login');
 }
 
+// initialise tooltip elements
+function initTooltips(root = document) {
+    const triggers = Array.from(root.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    triggers.forEach(el => new bootstrap.Tooltip(el));
+}
+
 window.currentHoldings = [];
 
 const livePrices = {};
+
+// for card stats
+async function loadStats(symbol) {
+    const statEl = document.getElementById(`stats-${symbol}`);
+    statEl.textContent = 'Loading stats…';
+
+    try {
+        const res = await fetch(
+            `/api/history?symbol=${encodeURIComponent(symbol)}&range=1d`,
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) throw new Error(await res.text());
+        const bars = await res.json();
+
+        if (!Array.isArray(bars) || bars.length === 0) {
+            throw new Error('No bars returned');
+        }
+
+        // compute open, high, low, close, volume and insert tooltip
+        const open = bars[0].o;
+        const close = bars[bars.length - 1].c;
+        const high = Math.max(...bars.map(b => b.h));
+        const low = Math.min(...bars.map(b => b.l));
+        const volume = bars.reduce((sum, b) => sum + b.v, 0);
+
+        statEl.innerHTML = `
+        <div class="d-flex flex-wrap gap-2">
+    <span data-bs-toggle="tooltip" title="Open: price at today's first trade">
+      Open: ${open.toFixed(2)}
+    </span>
+    <span data-bs-toggle="tooltip" title="High: the highest price during the day">
+      High: ${high.toFixed(2)}
+    </span>
+    <span data-bs-toggle="tooltip" title="Low: the lowest price during the day">
+      Low: ${low.toFixed(2)}
+    </span>
+    <span data-bs-toggle="tooltip" title="Close: the most recent price">
+      Close: ${close.toFixed(2)}
+    </span>
+    <span data-bs-toggle="tooltip" title="Volume: total shares traded in the last 24H">
+      Volume: ${volume.toLocaleString()}
+    </span>
+  </div>
+      `;
+
+        initTooltips(statEl);
+    } catch (err) {
+        console.warn(`loadStats(${symbol}) failed:`, err);
+        statEl.textContent = 'Stats unavailable (you have reached the max number of API calls on our free plan, try reducing number of symbols in your watchlist)';
+    }
+}
+
+
 
 // logout button
 const logoutBtn = document.getElementById('logoutBtn');
@@ -320,16 +379,10 @@ trackBtn.addEventListener('click', () => {
             <div class="card-header d-flex justify-content-between align-items-center">
               <h6 class="mb-0">${symbol}</h6>
               <div>
-                <button 
-                  class="btn btn-sm btn-outline-primary me-2" 
-                  data-action="view-chart" 
-                  data-symbol="${symbol}">
+                <button class="btn btn-sm btn-outline-primary me-2" data-action="view-chart" data-symbol="${symbol}">
                   <i class="fas fa-chart-line"></i>
                 </button>
-                <button 
-                  class="btn btn-sm btn-outline-danger" 
-                  data-action="remove-card" 
-                  data-symbol="${symbol}">
+                <button class="btn btn-sm btn-outline-danger" data-action="remove-card" data-symbol="${symbol}">
                   &times;
                 </button>
               </div>
@@ -337,10 +390,19 @@ trackBtn.addEventListener('click', () => {
             <div class="card-body text-center">
               <p id="price-${symbol}" class="fs-3">$0.00</p>
               <p id="change-${symbol}" class="text-muted small">–</p>
+      
+              <!-- new stats block -->
+              <div id="stats-${symbol}" class="mt-2 small text-start text-secondary">
+                Loading stats…
+              </div>
             </div>
           </div>
         </div>
       `);
+
+    // then load stats
+    loadStats(symbol);
+
 
 });
 
@@ -358,7 +420,8 @@ document.getElementById('watch-cards').addEventListener('click', e => {
     const btn = e.target.closest('button[data-action="remove-card"]');
     if (!btn) return;
     const sym = btn.dataset.symbol;
-    document.getElementById(`card-${sym}`)?.remove();
+    // use your helper — this removes from DOM *and* from localStorage
+    removeCard(sym);
 });
 
 // view-chart handler
@@ -459,11 +522,12 @@ socket.on('priceUpdate', ({ symbol, price }) => {
 
 
 window.addEventListener('DOMContentLoaded', () => {
-    // rehydrate saved watchlist cards
+    //rehydrate
     const saved = JSON.parse(localStorage.getItem('watchlist') || '[]');
     saved.forEach(sym => {
         document.getElementById('stockSymbol').value = sym;
         document.getElementById('trackBtn').click();
+        loadStats(sym);
     });
 
     // add holding and remove row handler
@@ -496,6 +560,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     updateNotificationWarning();
+    initTooltips();
 });
 
 

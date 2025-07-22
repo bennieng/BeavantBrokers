@@ -1,4 +1,7 @@
 require('dotenv').config();
+console.log('🔑 POLYGON_API_KEY:', process.env.POLYGON_API_KEY
+    ? '✔︎ loaded'
+    : '✘ MISSING — check your .env');
 const crypto = require('crypto');
 const path = require('path');
 const express = require('express');
@@ -274,6 +277,37 @@ app.get('/api/history', authenticateToken, async (req, res) => {
     }
 });
 
+// open/close endpoint
+app.get('/api/open-close/:symbol/:date', authenticateToken, async (req, res) => {
+    const { symbol, date } = req.params;
+    try {
+        const { data } = await axios.get(
+            `https://api.polygon.io/v1/open-close/${symbol}/${date}`,
+            { params: { adjusted: true, apiKey: process.env.POLYGON_API_KEY } }
+        );
+        return res.json(data);
+    } catch (err) {
+        console.error('❌ open-close error', err.response?.status, err.message);
+        return res.status(502).send('Open-close fetch failed');
+    }
+});
+
+// last quote endpoint
+app.get('/api/last-quote/:symbol', authenticateToken, async (req, res) => {
+    const { symbol } = req.params;
+    try {
+        const { data } = await axios.get(
+            `https://api.polygon.io/v1/last_quote/stocks/${symbol}`,
+            { params: { apiKey: process.env.POLYGON_API_KEY } }
+        );
+        return res.json(data);
+    } catch (err) {
+        console.error('❌ last-quote error', err.response?.status, err.message);
+        return res.status(502).send('Last-quote fetch failed');
+    }
+});
+
+
 // next-day ML prediction proxy
 app.get('/api/predict', async (req, res) => {
     const { symbol } = req.query;
@@ -303,6 +337,7 @@ app.get('/api/predict', async (req, res) => {
         }
     }
 });
+
 
 
 // websocket feed and socket.io auth

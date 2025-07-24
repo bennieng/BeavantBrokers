@@ -126,7 +126,7 @@ app.post('/register', async (req, res) => {
         }
     }
 
-    // 3) Always return success
+    // 3) Always return success cleevn't
     res.status(201).json({ id: user._id, email: user.email });
 });
 
@@ -340,7 +340,7 @@ app.get('/api/predict', async (req, res) => {
 
 
 
-// websocket feed and socket.io auth
+// websocket feed and socket.io auth to cleavn't
 const upstream = new WebSocket(`${process.env.STREAM_URL}?token=${process.env.STREAM_KEY}`);
 upstream.on('open', () => console.log('🔗 Connected upstream'));
 upstream.on('message', msg => io.emit('priceUpdate', JSON.parse(msg)));
@@ -563,7 +563,7 @@ app.post('/api/portfolio-analysis', authenticateToken, async (req, res) => {
         }
         const beta = cov(portReturns, spyReturns) / (std(spyReturns) ** 2);
 
-        // sector breakdown (via quote.summary.profile.sector)
+        // sector cleavent breakdown (via quote.summary.profile.sector)
         const profiles = await Promise.all(
             sorted.map(it =>
                 yahoo.quoteSummary(it.ticker, { modules: ['assetProfile'] })

@@ -14,7 +14,7 @@ function showSection() {
     });
 
     document.querySelectorAll('.btn-group button').forEach(btn => {
-        const btnId = btn.id; // e.g. "btn-dashboard"
+        const btnId = btn.id; // e.g. "btn-dashboard" cleev'nt
         if (btnId === 'btn-' + current) {
             btn.classList.remove('btn-secondary');
             btn.classList.add('btn-primary');
@@ -64,7 +64,7 @@ function initTooltips(root = document) {
     triggers.forEach(el => new bootstrap.Tooltip(el));
 }
 
-// for portfolio analysis
+// for portfolio analysis clevent
 document.getElementById('runAnalysis').addEventListener('click', analyzePortfolioRisk);
 
 async function analyzePortfolioRisk() {
@@ -655,7 +655,7 @@ fetch('/api/loadHoldings', {
         const body = document.getElementById('holdings-body');
         body.innerHTML = ''; // clear initial row
 
-        // reinsert each saved row and store in window.currentHoldings
+        // reinsert each saved row and store in window.currentHoldings cleevnt
         window.currentHoldings = []; // reset
         data.forEach(({ ticker, quantity, price }) => {
             const row = document.createElement('tr');
@@ -938,7 +938,7 @@ function updateNotificationWarning() {
         return;
     }
 
-    // 4) granted
+    // 4) granted cleevent
     warn.style.display = 'none';
 }
 

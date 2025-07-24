@@ -64,6 +64,89 @@ function initTooltips(root = document) {
     triggers.forEach(el => new bootstrap.Tooltip(el));
 }
 
+// for portfolio analysis
+document.getElementById('runAnalysis').addEventListener('click', analyzePortfolioRisk);
+
+async function analyzePortfolioRisk() {
+    const btn = document.getElementById('runAnalysis');
+    btn.disabled = true;
+    btn.textContent = 'Analyzing…';
+
+    // build holdings from livePrices & currentHoldings
+    const payload = {
+        holdings: window.currentHoldings.map(h => ({
+            ticker: h.ticker,
+            quantity: h.quantity
+        }))
+    };
+
+    try {
+        const res = await fetch('/api/portfolio-analysis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+
+        // render
+        // key Metrics
+        document.getElementById('analysis-metrics').innerHTML = `
+    <h5>Key Metrics</h5>
+    <ul class="list-unstyled">
+      <li><strong>Volatility (σ):</strong> ${(data.metrics.volatility * 100).toFixed(2)}%</li>
+      <li><strong>VaR 95%:</strong> ${(data.metrics.var95 * 100).toFixed(2)}%</li>
+      <li><strong>Beta vs. SPY:</strong> ${data.metrics.beta.toFixed(2)}</li>
+      <li><strong>Top 3 Concentration:</strong> ${(data.metrics.concentrationTop3 * 100).toFixed(1)}%</li>
+    </ul>
+  `;
+
+        // sector breakdown
+        document.getElementById('analysis-breakdown').innerHTML = `
+    <h5>Sector Breakdown</h5>
+    <ul class="list-unstyled">
+      ${Object.entries(data.metrics.sectorWeights)
+                .map(([sec, w]) =>
+                    `<li><strong>${sec}:</strong> ${(w * 100).toFixed(1)}%</li>`
+                ).join('')}
+    </ul>
+  `;
+
+        // recommendations
+        document.getElementById('analysis-recommendations').innerHTML = `
+    <h5>Recommendations</h5>
+    <ul class="list-unstyled">
+      ${data.recommendations.map(r =>
+            `<li>
+           <strong>${r.title}:</strong>
+           <small class="text-muted">${r.text}</small>
+         </li>`
+        ).join('')}
+    </ul>
+  `;
+
+        initTooltips(document.getElementById('analysis'));
+
+    } catch (err) {
+        console.error(err);
+        alert('Analysis failed: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fas fa-play me-1"></i>Run Analysis`;
+    }
+}
+
+// ensure showSection() is called on page load
+window.addEventListener('hashchange', () => {
+    showSection();
+    if (window.location.hash === '#analysis') {
+    }
+});
+
+
 window.currentHoldings = [];
 
 const livePrices = {};
@@ -106,7 +189,7 @@ async function loadStats(symbol) {
     <span data-bs-toggle="tooltip" title="Close: the most recent price">
       Close: ${close.toFixed(2)}
     </span>
-    <span data-bs-toggle="tooltip" title="Volume: total shares traded in the last 24H">
+    <span data-bs-toggle="tooltip" title="Volume: total quantity of shares traded in the last 24H">
       Volume: ${volume.toLocaleString()}
     </span>
   </div>

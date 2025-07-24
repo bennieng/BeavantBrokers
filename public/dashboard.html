@@ -250,7 +250,12 @@
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="#alerts">
-                                <i class="bi bi-bell"></i> Alerts
+                                <i class="fas fa-bell me-1"></i>Alerts
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#analysis">
+                                <i class="fas fa-chart-area me-1"></i>Analysis
                             </a>
                         </li>
                         <li class="nav-item">
@@ -487,6 +492,47 @@
                         </table>
                     </div>
                 </section>
+
+
+                <!-- ─── Analysis Section ───────────────────────────────────────── -->
+                <section id="analysis" style="display:none;">
+                    <h2 class="section-title">
+                        <i class="fas fa-chart-area me-2"></i>Portfolio Analysis
+                    </h2>
+                    <p>Click below to get a risk &amp; diversification report:</p>
+                    <button id="runAnalysis" class="btn btn-primary mb-4">
+                        <i class="fas fa-play me-1"></i>Run Analysis
+                    </button>
+
+                    <div class="row g-4">
+                        <!-- Key Metrics -->
+                        <div class="col-md-4">
+                            <div class="card h-100">
+                                <div class="card-body" id="analysis-metrics">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Sector Breakdown -->
+                        <div class="col-md-4">
+                            <div class="card h-100">
+                                <div class="card-body" id="analysis-breakdown">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Recommendations -->
+                        <div class="col-md-4">
+                            <div class="card h-100">
+                                <div class="card-body" id="analysis-recommendations">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <!-- ─────────────────────────────────────────────────────────────────────────── -->
+
 
             </main>
         </div>

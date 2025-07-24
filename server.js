@@ -478,3 +478,137 @@ mongoose.connect(process.env.MONGO_URI, {
         server.listen(PORT, () => console.log(`Listening on http://localhost:${PORT}`));
     })
     .catch(err => console.error('MongoDB error', err));
+
+
+// portfolio recommendations 
+
+const yahoo = require('yahoo-finance2').default;
+
+// helper to compute sd
+function std(arr) {
+    const μ = arr.reduce((sum, x) => sum + x, 0) / arr.length;
+    return Math.sqrt(arr.reduce((sum, x) => sum + (x - μ) ** 2, 0) / (arr.length - 1));
+}
+
+// analysis
+app.post('/api/portfolio-analysis', authenticateToken, async (req, res) => {
+    try {
+        const holdings = req.body.holdings; // [{ ticker, quantity }]
+        if (!Array.isArray(holdings) || holdings.length === 0) {
+            return res.status(400).json({ error: 'No holdings provided' });
+        }
+
+        // mkt values and weights
+        const quotes = await Promise.all(
+            holdings.map(h => yahoo.quote(h.ticker).catch(() => null))
+        );
+        let totalValue = 0;
+        const items = holdings.map((h, i) => {
+            const price = quotes[i]?.regularMarketPrice || 0;
+            const value = price * h.quantity;
+            totalValue += value;
+            return { ticker: h.ticker, quantity: h.quantity, price, value };
+        });
+        items.forEach(it => it.weight = totalValue ? it.value / totalValue : 0);
+
+        // concentration (top 3 holdings)
+        const sorted = [...items].sort((a, b) => b.weight - a.weight);
+        const top3Weight = sorted.slice(0, 3).reduce((sum, x) => sum + x.weight, 0);
+
+        // fetch 1y daily history for each ticker + spy
+        const end = new Date();
+        const start = new Date(end);
+        start.setFullYear(start.getFullYear() - 1);
+
+        const history = await Promise.all(
+            sorted.map(it =>
+                yahoo.historical(it.ticker, { period1: start, period2: end, interval: '1d' })
+            )
+        );
+        const spyHist = await yahoo.historical('SPY', { period1: start, period2: end, interval: '1d' });
+
+        // daily returns
+        const getReturns = data =>
+            data
+                .map((d, i, arr) => i > 0 && d.close && arr[i - 1].close
+                    ? (d.close - arr[i - 1].close) / arr[i - 1].close
+                    : null
+                )
+                .filter(x => x != null);
+
+        const spyReturns = getReturns(spyHist);
+
+        // portfolio returns = sum(weight_i * ret_i)
+        const portReturns = history[0].map((_, dayIdx) => {
+            if (dayIdx === 0) return null;
+            let r = 0, valid = true;
+            for (let j = 0; j < sorted.length; j++) {
+                const series = getReturns(history[j]);
+                if (!series[dayIdx - 1]) { valid = false; break; }
+                r += series[dayIdx - 1] * sorted[j].weight;
+            }
+            return valid ? r : null;
+        }).filter(x => x != null);
+
+        // volatility and VaR
+        const vol = std(portReturns);
+        const sortedR = [...portReturns].sort((a, b) => a - b);
+        const var95 = sortedR[Math.floor(0.05 * sortedR.length)];
+
+        // beta: cov(port, SPY) / var(SPY)
+        function cov(a, b) {
+            const μa = a.reduce((s, x) => s + x, 0) / a.length;
+            const μb = b.reduce((s, x) => s + x, 0) / b.length;
+            return a.reduce((s, x, i) => s + (x - μa) * (b[i] - μb), 0) / (a.length - 1);
+        }
+        const beta = cov(portReturns, spyReturns) / (std(spyReturns) ** 2);
+
+        // sector breakdown (via quote.summary.profile.sector)
+        const profiles = await Promise.all(
+            sorted.map(it =>
+                yahoo.quoteSummary(it.ticker, { modules: ['assetProfile'] })
+                    .then(r => r.assetProfile?.sector || 'Unknown')
+                    .catch(() => 'Unknown')
+            )
+        );
+        const sectorMap = {};
+        sorted.forEach((it, i) => {
+            sectorMap[profiles[i]] = (sectorMap[profiles[i]] || 0) + it.weight;
+        });
+
+        // build recommendations
+        const recs = [];
+        if (top3Weight > 0.4) {
+            recs.push({
+                title: 'Too concentrated',
+                text: `Your top 3 holdings make up ${(top3Weight * 100).toFixed(1)}% of your portfolio — consider diversifying.`
+            });
+        }
+        if (vol > 0.02) {
+            recs.push({
+                title: 'Volatility',
+                text: `Your portfolio volatility is ${(vol * 100).toFixed(2)}% daily. If you would like to reduce risk, consider lower‐beta or defensive assets.`
+            });
+        }
+        recs.push({
+            title: 'Beta vs. SPY',
+            text: `Your portfolio beta is ${beta.toFixed(2)} (vs. SPY). ${beta > 1 ? 'You will swing more than the market.' : 'You are less reactive than the market.'}`
+        });
+
+        // reply
+        return res.json({
+            metrics: {
+                volatility: vol,
+                var95,
+                beta,
+                concentrationTop3: top3Weight,
+                sectorWeights: sectorMap
+            },
+            recommendations: recs
+        });
+    } catch (err) {
+        console.error('Portfolio analysis error:', err);
+        res.status(500).json({ error: 'Analysis failed' });
+    }
+});
+

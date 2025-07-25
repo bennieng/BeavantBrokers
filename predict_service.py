@@ -3,15 +3,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sklearn.ensemble import RandomForestRegressor
 
- # ——— PRELOAD ALL MODELS ON STARTUP ———
-MODEL_DIR = "models"
-MODELS = {}
-for fn in os.listdir(MODEL_DIR):
-    if fn.endswith(".joblib"):
-        sym = fn[:-7].upper()
-        MODELS[sym] = joblib.load(os.path.join(MODEL_DIR, fn))
-
-
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -22,6 +13,14 @@ app.add_middleware(
 
 MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+ # ——— PRELOAD ALL MODELS ON STARTUP ———
+MODEL_DIR = "models"
+MODELS = {}
+for fn in os.listdir(MODEL_DIR):
+    if fn.endswith(".joblib"):
+        sym = fn[:-7].upper()
+        MODELS[sym] = joblib.load(os.path.join(MODEL_DIR, fn))
 
 def featurize(df: pd.DataFrame):
     df["return_1d"] = df["Close"].pct_change()

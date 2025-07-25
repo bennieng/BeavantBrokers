@@ -898,6 +898,25 @@ if (holdingsForm) {
         calculateAndDisplayHoldings();
     });
 }
+
+// Refresh currentHoldings and dashboard after saving
+window.currentHoldings = holdingsToSave;
+
+Promise.all(
+    holdingsToSave.map(h =>
+        fetch(`/api/quote?symbol=${encodeURIComponent(h.ticker)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data) livePrices[h.ticker] = data.price;
+            })
+            .catch(err => console.warn(`[Quote Fetch] ${h.ticker} failed`, err.message))
+    )
+).then(() => {
+    updateDashboardMetrics(); // refresh dashboard UI
+});
+
 // show/hide the “notifications disabled” warning and offer a button to enable
 function updateNotificationWarning() {
     const warn = document.getElementById('notificationWarning');

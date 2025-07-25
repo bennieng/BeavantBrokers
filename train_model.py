@@ -8,11 +8,13 @@ import joblib
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
+from russell1000_tickers import tickers as SYMBOLS
 
 # 1) Configuration: your universe of stocks
-SYMBOLS   = ["AAPL","NVDA","TSLA","MSFT","GOOG"]
 MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+already_trained = set(os.path.splitext(f)[0] for f in os.listdir(MODEL_DIR))
 
 for sym in SYMBOLS:
     print(f"\nTraining model for {sym}…")

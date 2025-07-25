@@ -118,7 +118,6 @@ async function analyzePortfolioRisk() {
         // recommendations
         const varPct = (data.metrics.var95 * 100).toFixed(2);
 
-        // 2. build your existing recsHtml
         const recsHtml = data.recommendations.map(r => `
   <li>
     <strong>${r.title}:</strong>
@@ -126,7 +125,6 @@ async function analyzePortfolioRisk() {
   </li>
 `).join('');
 
-        // 3. inject everything plus the dynamic VaR explanation
         document.getElementById('analysis-recommendations').innerHTML = `
   <h5>Recommendations</h5>
   <ul class="list-unstyled">

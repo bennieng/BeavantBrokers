@@ -653,6 +653,11 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Recalculate holdings when any input in the holdings table is edited
+    document.getElementById('holdings-body').addEventListener('input', () => {
+        calculateAndDisplayHoldings();
+    });
+
     updateNotificationWarning();
     initTooltips();
 });

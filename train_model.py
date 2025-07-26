@@ -8,7 +8,18 @@ import joblib
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
-from russell1000_tickers import tickers as SYMBOLS
+SYMBOLS = [
+    "AAPL", "MSFT", "GOOG", "TSLA", "NVDA",
+    "META", "AMZN", "JPM", "V", "UNH",
+    "JNJ", "XOM", "PG", "HD", "MA",
+    "BAC", "AVGO", "LLY", "MRK", "PEP",
+    "COST", "ABBV", "KO", "WMT", "CVX",
+    "ADBE", "CRM", "MCD", "CSCO", "DIS",
+    "TXN", "PFE", "NFLX", "INTC", "VZ",
+    "TMO", "QCOM", "WFC", "ABT", "NKE",
+    "ACN", "DHR", "UPS", "LIN", "PM",
+    "NEE", "AMGN", "LOW", "MDT", "MS"
+]
 
 # 1) Configuration: your universe of stocks
 MODEL_DIR = "models"

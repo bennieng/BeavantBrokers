@@ -358,6 +358,8 @@ document.getElementById('watch-cards').addEventListener('click', e => {
 // live mapping
 const socket = io({ auth: { token } });
 
+
+
 socket.on('connect', () => {
     console.log('🔗 Connected to price feed, socket id:', socket.id);
 });
@@ -433,6 +435,7 @@ socket.on('priceUpdate', ({ symbol, price, timestamp, change, changePercent }) =
         window.chart.update('none');
     }
     updateDashboardMetrics();
+    calculateAndDisplayHoldings();
 
     if (symbol === chartSymbol) {
         priceChart.data.datasets[0].data.push({
@@ -653,10 +656,10 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Recalculate holdings when any input in the holdings table is edited
-    document.getElementById('holdings-body').addEventListener('input', () => {
-        calculateAndDisplayHoldings();
+    document.getElementById("calculateBtn").addEventListener("click", async () => {
+        location.reload();
     });
+
 
     updateNotificationWarning();
     initTooltips();
@@ -817,6 +820,36 @@ document.getElementById('prediction-cards').addEventListener('click', e => {
 });
 
 
+async function calculateAndUpdateStats(holdings) {
+    let totalValue = 0;
+    let totalCost = 0;
+    let todayPL = 0;
+
+    for (const h of holdings) {
+        try {
+            const res = await fetch(`/api/quote?symbol=${h.ticker}`, {
+                headers: {
+                    Authorization: 'Bearer ' + localStorage.getItem('token')
+                }
+            });
+            const data = await res.json();
+            const price = data.price;
+            const value = price * h.quantity;
+            const cost = h.price * h.quantity;
+            const pl = (price - h.price) * h.quantity;
+
+            totalValue += value;
+            totalCost += cost;
+            todayPL += pl;
+        } catch (err) {
+            console.error('Failed to fetch price for', h.ticker, err);
+        }
+    }
+
+    document.getElementById('totalValue').textContent = totalValue.toFixed(2);
+    document.getElementById('todayPL').textContent = todayPL.toFixed(2);
+    document.getElementById('unrealisedGL').textContent = (totalValue - totalCost).toFixed(2);
+}
 
 
 
@@ -867,6 +900,17 @@ function calculateAndDisplayHoldings() {
             if (!res.ok) console.error('Failed to save holdings on recalc.');
         })
         .catch(err => console.error('Error saving holdings on recalc:', err));
+
+    fetch('/api/loadHoldings', {
+        method: 'GET',
+        headers: {
+            Authorization: 'Bearer ' + localStorage.getItem('token')
+        }
+    })
+        .then(res => res.json())
+        .then(fetchedHoldings => {
+            calculateAndUpdateStats(fetchedHoldings); // Trigger update using new data
+        });
 }
 
 
@@ -983,3 +1027,13 @@ window.addEventListener('DOMContentLoaded', () => {
     updateNotificationWarning();
 });
 
+window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('calculateBtn')
+    if (btn) {
+        btn.addEventListener('click', e => {
+            e.preventDefault()         // ⟵ stop the form‑submit
+            window.location.reload()   // ⟵ full page refresh
+        })
+    }
+    // … any other init code …
+})

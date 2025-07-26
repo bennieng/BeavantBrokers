@@ -59,6 +59,8 @@ const userSchema = new mongoose.Schema({
     passwordHash: { type: String, required: true },
     emailVerified: { type: Boolean, default: false },
     verifyToken: { type: String },
+    resetToken: { type: String },
+    resetTokenExpiration: { type: Date },
     holdings: [
         {
             ticker: { type: String, required: true },
@@ -67,6 +69,7 @@ const userSchema = new mongoose.Schema({
         }
     ]
 });
+
 
 const User = mongoose.model('User', userSchema);
 // added for polygon api
@@ -144,6 +147,53 @@ app.get('/verify', async (req, res) => {
     // redirect back to login with a success message
     res.redirect('/?verified=1');
 });
+
+app.post("/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(404).send("User not found");
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiration = new Date(Date.now() + 3600000); // 1 hour
+
+    user.resetToken = token;
+    user.resetTokenExpiration = expiration;
+    await user.save();
+
+    const resetLink = `${process.env.APP_URL}/reset-password.html?token=${token}`;
+
+    await transporter.sendMail({
+        from: `"BeavantBrokers" <${process.env.SMTP_USER}>`,
+        to: user.email,
+        subject: "Password Reset",
+        html: `<p>Click to reset your password: <a href="${resetLink}">${resetLink}</a></p>`
+    });
+
+    res.send("Reset link sent to your email.");
+});
+
+app.post("/reset-password", async (req, res) => {
+    const { token, newPassword } = req.body;
+    const user = await User.findOne({
+        resetToken: token,
+        resetTokenExpiration: { $gt: new Date() }
+    });
+
+    if (!user) return res.status(400).send("Invalid or expired token");
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = hash;
+    user.resetToken = undefined;
+    user.resetTokenExpiration = undefined;
+
+    // ✅ Mark email as verified if not already
+    user.emailVerified = true;
+
+    await user.save();
+    res.send("Password has been reset successfully");
+});
+
 
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;

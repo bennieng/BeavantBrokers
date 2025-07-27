@@ -908,7 +908,7 @@ async function loadPredictions() {
            data-symbol="${sym}"
            aria-label="Remove">
          </button>
-         Error loading ${sym}
+         'Error loading ${sym} - please try again.'
        </div>
      </div>
    </div>

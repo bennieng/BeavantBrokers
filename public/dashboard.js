@@ -104,16 +104,41 @@ async function analyzePortfolioRisk() {
     </ul>
   `;
 
-        // sector breakdown
-        document.getElementById('analysis-breakdown').innerHTML = `
+        // sector breakdown → pie chart
+        const breakdownEl = document.getElementById('analysis-breakdown');
+        breakdownEl.innerHTML = `
     <h5>Sector Breakdown</h5>
-    <ul class="list-unstyled">
-      ${Object.entries(data.metrics.sectorWeights)
-                .map(([sec, w]) =>
-                    `<li><strong>${sec}:</strong> ${(w * 100).toFixed(1)}%</li>`
-                ).join('')}
-    </ul>
+    <canvas id="sectorChartCanvas" height="200"></canvas>
   `;
+
+        // grab weights & labels
+        const sectors = Object.keys(data.metrics.sectorWeights);
+        const weights = sectors.map(s => +(data.metrics.sectorWeights[s] * 100).toFixed(1));
+
+        // if we already drew one, destroy it
+        if (window.sectorChartInstance) {
+            window.sectorChartInstance.destroy();
+        }
+
+        // instantiate new pie
+        const ctx = document.getElementById('sectorChartCanvas').getContext('2d');
+        window.sectorChartInstance = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: sectors,
+                datasets: [{ data: weights }]
+            },
+            options: {
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.label}: ${ctx.parsed}%`
+                        }
+                    }
+                }
+            }
+        });
 
         // recommendations
         const varPct = (data.metrics.var95 * 100).toFixed(2);
@@ -751,9 +776,10 @@ async function loadPredictions() {
 
     // 2c) Render cards with a remove-button
     cards.innerHTML = '';
-    results.forEach(r => {
+    results.forEach((r, i) => {
+        const sym = mlSymbols[i];                          // ← always get true ticker
         if (r.status === 'fulfilled' && !r.value.data.error) {
-            const { sym, data: { next_day_close } } = r.value;
+            const { data: { next_day_close } } = r.value;
 
             cards.insertAdjacentHTML('beforeend', `
         <div class="col">
@@ -773,16 +799,21 @@ async function loadPredictions() {
         </div>
       `);
         } else {
-            const sym = r.status === 'fulfilled' ? r.value.sym : '???';
+            // error case with remove button
             cards.insertAdjacentHTML('beforeend', `
-        <div class="col">
-          <div class="card border-danger text-center">
-            <div class="card-body">
-              Error loading ${sym}
-            </div>
-          </div>
-        </div>
-      `);
+   <div class="col">
+     <div class="card border-danger text-center">
+       <div class="card-body position-relative">
+         <button
+           class="btn-close position-absolute top-0 end-0 remove-pred-symbol"
+           data-symbol="${sym}"
+           aria-label="Remove">
+         </button>
+         Error loading ${sym}
+       </div>
+     </div>
+   </div>
+ `);
         }
     });
 }

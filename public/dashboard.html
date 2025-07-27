@@ -368,15 +368,32 @@
                 <section id="predictions" style="display:none">
                     <h2>ML Predictions</h2>
 
-                    <!-- 1a) Input to add tickers -->
-                    <div class="input-group mb-3">
-                        <input type="text" id="predSymbolInput" class="form-control"
-                            placeholder="Add ticker (e.g. AAPL)" />
-                        <button class="btn btn-primary" id="addPredSymbol">Add</button>
-                    </div>
+                    <!-- 📣 NOTE: only these tickers are supported -->
+                    <p class="text-muted small">
+                        Predictions currently available only for:
+                        AAPL, MSFT, GOOG, TSLA, NVDA,
+                        META, AMZN, JPM, V, UNH,
+                        JNJ, XOM, PG, HD, MA,
+                        BAC, AVGO, LLY, MRK, PEP,
+                        COST, ABBV, KO, WMT, CVX,
+                        ADBE, CRM, MCD, CSCO, DIS,
+                        TXN, PFE, NFLX, INTC, VZ,
+                        TMO, QCOM, WFC, ABT, NKE,
+                        ACN, DHR, UPS, LIN, PM,
+                        NEE, AMGN, LOW, MDT, MS
+                    </p>
 
-                    <!-- 1b) Container for cards -->
-                    <div class="row" id="prediction-cards"></div>
+                    <div class="input-group mb-3">
+
+                        <!-- 1a) Input to add tickers -->
+                        <div class="input-group mb-3">
+                            <input type="text" id="predSymbolInput" class="form-control"
+                                placeholder="Add ticker (e.g. AAPL)" />
+                            <button class="btn btn-primary" id="addPredSymbol">Add</button>
+                        </div>
+
+                        <!-- 1b) Container for cards -->
+                        <div class="row" id="prediction-cards"></div>
                 </section>
 
                 <!-- Profile Section -->

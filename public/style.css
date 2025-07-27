@@ -227,3 +227,43 @@ footer {
     position: relative;
     z-index: 1;
 }
+
+/* ── ML PREDICTIONS CARDS ───────────────────────────────────────────────── */
+#prediction-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    justify-content: flex-start;
+}
+
+.prediction-card {
+    flex: 0 0 500px;
+    /* make each card 220px wide */
+    width: 300px;
+
+    /* fixed width for even grid */
+}
+
+.prediction-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+.prediction-card .card-body {
+    padding: var(--space-md);
+}
+
+.prediction-card .card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.prediction-card .card-price {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--brand-primary);
+}
+
+.prediction-card .btn-close {
+    transform: scale(1.2);
+}

@@ -1,3 +1,16 @@
+const ALLOWED_PRED_SYMBOLS = [
+    "AAPL", "MSFT", "GOOG", "TSLA", "NVDA",
+    "META", "AMZN", "JPM", "V", "UNH",
+    "JNJ", "XOM", "PG", "HD", "MA",
+    "BAC", "AVGO", "LLY", "MRK", "PEP",
+    "COST", "ABBV", "KO", "WMT", "CVX",
+    "ADBE", "CRM", "MCD", "CSCO", "DIS",
+    "TXN", "PFE", "NFLX", "INTC", "VZ",
+    "TMO", "QCOM", "WFC", "ABT", "NKE",
+    "ACN", "DHR", "UPS", "LIN", "PM",
+    "NEE", "AMGN", "LOW", "MDT", "MS"
+];
+
 // ─── NAVIGATION HELPERS ──────────────────────────────────────────────────
 
 // hide section tags under main, then show only the one matching window.location.hash.
@@ -783,7 +796,7 @@ async function loadPredictions() {
 
             cards.insertAdjacentHTML('beforeend', `
         <div class="col">
-          <div class="card shadow-sm h-100 text-center">
+          <div class="prediction-card card shadow-sm">
             <div class="card-body position-relative">
               <!-- ← PART A: Remove button -->
               <button 
@@ -830,6 +843,14 @@ document.getElementById('addPredSymbol').addEventListener('click', () => {
     const inp = document.getElementById('predSymbolInput');
     const sym = inp.value.trim().toUpperCase();
     if (!sym) return;
+
+    if (!ALLOWED_PRED_SYMBOLS.includes(sym)) {
+        return alert(
+            `Sorry, “${sym}” isn’t supported.\n` +
+            `Please choose from: ${ALLOWED_PRED_SYMBOLS.join(', ')}`
+        );
+    }
+
     let mlSymbols = JSON.parse(localStorage.getItem('mlSymbols') || '[]');
     if (!mlSymbols.includes(sym)) {
         mlSymbols.push(sym);
@@ -838,6 +859,7 @@ document.getElementById('addPredSymbol').addEventListener('click', () => {
     }
     inp.value = '';
 });
+
 
 // 5) Remove‐symbol handler (event-delegation)
 document.getElementById('prediction-cards').addEventListener('click', e => {

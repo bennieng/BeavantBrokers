@@ -655,6 +655,26 @@ socket.on('priceUpdate', ({ symbol, price }) => {
     });
 });
 
+function updateDashboardMetricsFromHoldings(holdings) {
+    const totalCost = holdings.reduce((sum, h) => sum + h.price * h.quantity, 0);
+    const totalMarketValue = holdings.reduce((sum, h) => {
+        const live = livePrices[h.ticker];
+        return sum + (typeof live === 'number' ? live * h.quantity : 0);
+    }, 0);
+
+    const unrealised = totalMarketValue - totalCost;
+
+    // Update DOM
+    document.getElementById('unrealisedPL').textContent = `$${unrealised.toFixed(2)}`;
+
+    // You may want to use the same logic for "today's P&L"
+    const totalTodayPL = holdings.reduce((sum, h) => {
+        const todayPL = livePriceChanges[h.ticker]; // e.g., difference from yesterday
+        return sum + (typeof todayPL === 'number' ? todayPL * h.quantity : 0);
+    }, 0);
+
+    document.getElementById('todayPL').textContent = `$${totalTodayPL.toFixed(2)}`;
+}
 
 window.addEventListener('DOMContentLoaded', () => {
     //rehydrate
@@ -688,14 +708,80 @@ window.addEventListener('DOMContentLoaded', () => {
         body.appendChild(newRow);
     });
 
-    document.getElementById('holdings-body').addEventListener('click', e => {
-        if (e.target.closest('.remove-row')) {
-            e.target.closest('tr').remove();
+    document.getElementById('holdings-body').addEventListener('click', async e => {
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+
+        // 1) remove the row
+        btn.closest('tr').remove();
+
+        // 2) recalc holdings
+        await calculateAndDisplayHoldings();
+
+        // 3) save updated holdings to backend
+        const rows = Array.from(document.querySelectorAll('#holdings-body tr'));
+        const updatedHoldings = rows.map(row => {
+            const ticker = row.querySelector('input[name="ticker"]').value.trim().toUpperCase();
+            const quantity = parseFloat(row.querySelector('input[name="quantity"]').value);
+            const price = parseFloat(row.querySelector('input[name="price"]').value);
+            return { ticker, quantity, price };
+        });
+
+        await fetch('/api/saveHoldings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(updatedHoldings)
+        });
+
+        if (response.ok) {
+            recalculateDashboardMetrics(updatedHoldings); // ✅ NEW: update metrics live
+            alert('Holdings updated!');
+        } else {
+            alert('Failed to update holdings.');
         }
     });
 
+
+
+
     document.getElementById("calculateBtn").addEventListener("click", async () => {
-        location.reload();
+        const calcBtn = document.getElementById('calculateBtn');
+        if (calcBtn) {
+            calcBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+
+                // 1. Update the metrics
+                await calculateAndDisplayHoldings();
+                await updateDashboardMetrics();
+
+                // 2. Get updated holdings from table
+                const rows = Array.from(document.querySelectorAll('#holdings-body tr'));
+                const updatedHoldings = rows.map(row => {
+                    const ticker = row.querySelector('input[name="ticker"]').value.trim().toUpperCase();
+                    const quantity = parseFloat(row.querySelector('input[name="quantity"]').value);
+                    const price = parseFloat(row.querySelector('input[name="price"]').value);
+                    return { ticker, quantity, price };
+                });
+
+                // 3. Save holdings to backend
+                const token = localStorage.getItem('jwt');
+                await fetch('/api/saveHoldings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify(updatedHoldings)
+                });
+
+                // ✅ Immediately update the metrics in the DOM
+                updateDashboardMetricsFromHoldings(updatedHoldings);
+
+            });
+        }
     });
 
 
@@ -966,6 +1052,10 @@ function calculateAndDisplayHoldings() {
         });
 }
 
+document.getElementById('refreshBtn').addEventListener('click', () => {
+    window.location.reload();
+});
+
 
 // logic to group same stock and recalculate avg price
 const holdingsForm = document.getElementById('holdings-form');
@@ -1090,3 +1180,33 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     // … any other init code …
 })
+
+function recalculateDashboardMetrics(holdings) {
+    let totalCost = 0;
+    let totalMarketValue = 0;
+    let totalTodayPL = 0;
+
+    holdings.forEach(h => {
+        const ticker = h.ticker.toUpperCase();
+        const quantity = parseFloat(h.quantity);
+        const price = parseFloat(h.price);
+
+        const live = livePrices[ticker];
+        const prevClose = prevClosePrices[ticker];
+
+        if (live && prevClose) {
+            totalCost += quantity * price;
+            totalMarketValue += quantity * live;
+            totalTodayPL += quantity * (live - prevClose);
+        }
+    });
+
+    const unrealised = totalMarketValue - totalCost;
+
+    const todayPLPercent = totalCost > 0 ? (totalTodayPL / totalCost) * 100 : 0;
+    const unrealisedPercent = totalCost > 0 ? (unrealised / totalCost) * 100 : 0;
+
+    document.getElementById('todays-pnl').textContent = `$${totalTodayPL.toFixed(2)} (${todayPLPercent.toFixed(1)}%)`;
+    document.getElementById('unrealized-pnl').textContent = `$${unrealised.toFixed(2)} (${unrealisedPercent.toFixed(1)}%)`;
+}
+

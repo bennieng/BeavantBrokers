@@ -7,10 +7,10 @@ def get_russell1000_tickers():
     res.raise_for_status()
     soup = BeautifulSoup(res.text, "html.parser")
 
-    # Find the heading containing "Components" (case-insensitive)
+    # find the heading containing "Components" (case-insensitive)
     for header in soup.find_all(["h2","h3"]):
         if "components" in header.text.lower():
-            # Collect the first table after this header
+            # collect the first table after this header
             table = header.find_next("table", {"class": "wikitable"})
             if not table:
                 continue

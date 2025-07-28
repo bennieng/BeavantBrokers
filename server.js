@@ -29,11 +29,6 @@ const transporter = nodemailer.createTransport({
 });
 
 
-// const fetch = require('node-fetch');
-
-
-
-
 // app and server setup
 const app = express();
 const server = http.createServer(app);
@@ -112,7 +107,7 @@ app.post('/register', async (req, res) => {
     if (!recipient) {
         console.error('❌ No email on user object – skipping email send');
     } else {
-        // 3) Send verification email
+        // 3) Send verification email benny boi
         const verifyUrl = `${process.env.APP_URL}/verify?token=${user.verifyToken}`;
         try {
             const info = await transporter.sendMail({
@@ -376,7 +371,7 @@ app.get('/api/predict', async (req, res) => {
                 throw new Error(`Status ${resp.status}`);
             }
 
-            const payload = JSON.parse(text);        // throws if HTML
+            const payload = JSON.parse(text);        // throws if HTML i hate this error UGH 
             return res.status(200).json(payload);
         } catch (err) {
             console.error(`[Predict][${attempt}] Error:`, err.message);

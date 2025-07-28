@@ -11,7 +11,7 @@ const ALLOWED_PRED_SYMBOLS = [
     "NEE", "AMGN", "LOW", "MDT", "MS"
 ];
 
-// ─── NAVIGATION HELPERS ──────────────────────────────────────────────────
+// ─── NAVIGATION HELPERS ───
 
 // hide section tags under main, then show only the one matching window.location.hash.
 function showSection() {
@@ -567,11 +567,6 @@ document.getElementById('watch-cards').addEventListener('click', e => {
     showChartFor(sym);
 });
 
-
-
-
-// price alert function
-
 // load saved alerts
 let alerts = JSON.parse(localStorage.getItem('priceAlerts') || '[]');
 
@@ -664,10 +659,10 @@ function updateDashboardMetricsFromHoldings(holdings) {
 
     const unrealised = totalMarketValue - totalCost;
 
-    // Update DOM
+    // update dom
     document.getElementById('unrealisedPL').textContent = `$${unrealised.toFixed(2)}`;
 
-    // You may want to use the same logic for "today's P&L"
+    // use the same logic for "today's P&L"
     const totalTodayPL = holdings.reduce((sum, h) => {
         const todayPL = livePriceChanges[h.ticker]; // e.g., difference from yesterday
         return sum + (typeof todayPL === 'number' ? todayPL * h.quantity : 0);
@@ -753,11 +748,11 @@ window.addEventListener('DOMContentLoaded', () => {
             calcBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
 
-                // 1. Update the metrics
+                // update the metrics
                 await calculateAndDisplayHoldings();
                 await updateDashboardMetrics();
 
-                // 2. Get updated holdings from table
+                // get updated holdings from table
                 const rows = Array.from(document.querySelectorAll('#holdings-body tr'));
                 const updatedHoldings = rows.map(row => {
                     const ticker = row.querySelector('input[name="ticker"]').value.trim().toUpperCase();
@@ -766,7 +761,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     return { ticker, quantity, price };
                 });
 
-                // 3. Save holdings to backend
+                // save holdings to backend
                 const token = localStorage.getItem('jwt');
                 await fetch('/api/saveHoldings', {
                     method: 'POST',
@@ -777,7 +772,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(updatedHoldings)
                 });
 
-                // ✅ Immediately update the metrics in the DOM
+                //update the metrics in the dom
                 updateDashboardMetricsFromHoldings(updatedHoldings);
 
             });
@@ -850,7 +845,7 @@ async function loadPredictions() {
     const cards = document.getElementById('prediction-cards');
     cards.innerHTML = '';
 
-    // 2a) Use a separate ML‐symbols list, default to empty
+    // a) use a separate ml‐symbols list, default to empty
     const mlSymbols = JSON.parse(localStorage.getItem('mlSymbols') || '[]');
     if (mlSymbols.length === 0) {
         cards.innerHTML = '<p>No symbols added. Use the input above.</p>';
@@ -859,7 +854,7 @@ async function loadPredictions() {
 
     cards.innerHTML = '<p>Loading predictions…</p>';
 
-    // 2b) Fetch predictions in parallel
+    // b) fetch predictions in parallel
     const results = await Promise.allSettled(
         mlSymbols.map(sym =>
             fetch(`/api/predict?symbol=${sym}`, {
@@ -873,7 +868,7 @@ async function loadPredictions() {
         )
     );
 
-    // 2c) Render cards with a remove-button
+    // c) render cards with a remove-button
     cards.innerHTML = '';
     results.forEach((r, i) => {
         const sym = mlSymbols[i];                          // ← always get true ticker
@@ -918,13 +913,13 @@ async function loadPredictions() {
 }
 
 
-// 3) Show the tab and load on hash
+// 3) show the tab and load on hash
 window.addEventListener('hashchange', () => {
     if (window.location.hash === '#predictions') loadPredictions();
 });
 if (window.location.hash === '#predictions') loadPredictions();
 
-// 4) Add‐symbol handler
+// 4) add‐symbol handler
 document.getElementById('addPredSymbol').addEventListener('click', () => {
     const inp = document.getElementById('predSymbolInput');
     const sym = inp.value.trim().toUpperCase();
@@ -947,7 +942,7 @@ document.getElementById('addPredSymbol').addEventListener('click', () => {
 });
 
 
-// 5) Remove‐symbol handler (event-delegation)
+// 5) remove‐symbol handler 
 document.getElementById('prediction-cards').addEventListener('click', e => {
     const btn = e.target.closest('.remove-pred-symbol');
     if (!btn) return;
@@ -1102,7 +1097,7 @@ if (holdingsForm) {
     });
 }
 
-// Refresh currentHoldings and dashboard after saving
+// refresh current holdings and dashboard after saving
 window.currentHoldings = holdingsToSave;
 
 Promise.all(
@@ -1174,11 +1169,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('calculateBtn')
     if (btn) {
         btn.addEventListener('click', e => {
-            e.preventDefault()         // ⟵ stop the form‑submit
-            window.location.reload()   // ⟵ full page refresh
+            e.preventDefault()         //  stop the form‑submit
+            window.location.reload()   //  full page refresh
         })
     }
-    // … any other init code …
 })
 
 function recalculateDashboardMetrics(holdings) {

@@ -31,7 +31,6 @@ def featurize(df: pd.DataFrame):
     y = df["Close"].shift(-1).dropna()
     return X.iloc[:-1], y  # align
 
-# predict_service.py
 
 import os
 import joblib
@@ -47,7 +46,7 @@ from sklearn.model_selection import train_test_split
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4000"],  # adjust to your front-end origin
+    allow_origins=["http://localhost:4000"],  
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -56,7 +55,6 @@ MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 def train_symbol(sym: str):
-    """Fetch 2y history for sym, train RF on it, save to models/{sym}.joblib."""
     df = yf.download(sym, period="2y", interval="1d").dropna()
     df["return_1d"] = df["Close"].pct_change()
     df["ma_5"]      = df["Close"].rolling(5).mean()
@@ -82,7 +80,6 @@ def predict(symbol: str):
     model = MODELS[sym]
 
     try:
-        # 1) Download recent price data
         raw = yf.download(
             sym,
             period="15d",
@@ -90,13 +87,11 @@ def predict(symbol: str):
             auto_adjust=True,
             group_by="ticker"
         )
-        # 2) Handle single vs multi-ticker DataFrame
         df = raw[sym] if isinstance(raw.columns, pd.MultiIndex) else raw
 
         if df.empty:
             raise HTTPException(404, detail=f"No price data for {sym}")
 
-        # 3) Feature engineering
         df["return_1d"] = df["Close"].pct_change()
         df["ma_5"]      = df["Close"].rolling(5).mean()
         df["vol_5"]     = df["Volume"].rolling(5).mean()
@@ -110,7 +105,6 @@ def predict(symbol: str):
             float(last["vol_5"]),
         ]
 
-        # 4) Predict
         pred = model.predict([feats])[0]
 
         return {
@@ -119,10 +113,8 @@ def predict(symbol: str):
         }
 
     except HTTPException:
-        # re-raise 404/503 errors
         raise
     except Exception as e:
-        # log and convert to 500
         traceback.print_exc()
         raise HTTPException(500, detail=str(e))
 

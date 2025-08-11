@@ -78,6 +78,24 @@ function initTooltips(root = document) {
 }
 
 // for portfolio analysis clevent
+
+function collectHoldingsFromUI() {
+    const rows = Array.from(document.querySelectorAll('#holdings-body tr'));
+    const list = [];
+
+    rows.forEach(r => {
+        const t = r.querySelector('input[name="ticker"]')?.value?.trim().toUpperCase();
+        const q = parseFloat(r.querySelector('input[name="quantity"]')?.value);
+        if (t && !isNaN(q) && q > 0) list.push({ ticker: t, quantity: q });
+    });
+
+    if (list.length === 0 && Array.isArray(window.currentHoldings)) {
+        return window.currentHoldings.map(h => ({ ticker: h.ticker, quantity: h.quantity }));
+    }
+
+    return list;
+}
+
 document.getElementById('runAnalysis').addEventListener('click', analyzePortfolioRisk);
 
 async function analyzePortfolioRisk() {
@@ -85,13 +103,15 @@ async function analyzePortfolioRisk() {
     btn.disabled = true;
     btn.textContent = 'Analyzing…';
 
-    // build holdings from livePrices & currentHoldings
-    const payload = {
-        holdings: window.currentHoldings.map(h => ({
-            ticker: h.ticker,
-            quantity: h.quantity
-        }))
-    };
+    const holdingsNow = collectHoldingsFromUI();
+    if (!holdingsNow.length) {
+        alert('No holdings found. Add positions in My Profile first.');
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fas fa-play me-1"></i>Run Analysis`;
+        return;
+    }
+
+    const payload = { holdings: holdingsNow };
 
     try {
         const res = await fetch('/api/portfolio-analysis', {
